@@ -3,8 +3,6 @@ package com.group9.eventgaze.entity;
 import jakarta.persistence.*;
 import lombok.Data;
 
-
-
 @Data
 @Entity
 @Table(name = "students")
@@ -18,15 +16,14 @@ public class Students {
     @Column(name = "first_name")
     private String firstName;
 
-    @Column(name = "last_Name")
+    @Column(name = "last_name")
     private String lastName;
 
-    @OneToOne
-    @JoinColumn(name = "user_id",referencedColumnName = "user_id")
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", referencedColumnName = "user_id", unique = true, nullable = false)
     private Users users;
 
-    @JoinColumn(name = "college_id",referencedColumnName = "college_id")
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "college_id", referencedColumnName = "college_id")
     private Colleges college;
-
 }

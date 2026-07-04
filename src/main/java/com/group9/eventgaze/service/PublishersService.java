@@ -21,6 +21,6 @@ public class PublishersService {
 
     public Publishers findByUser(Users user) {
         return publishersRepo.findByUsers(user)
-                .orElseThrow(() -> new RuntimeException("Publisher not found for user: " + user.getUserId()));
+                .orElseThrow(() -> new EntityNotFoundException("Publisher not found for user: " + user.getUserId()));
     }
 }

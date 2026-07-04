@@ -2,12 +2,15 @@ package com.group9.eventgaze.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
 
 @Data
 @Entity
-@Table(name = "student_bookmarks")
+@Table(name = "student_bookmarks", uniqueConstraints = {
+        @UniqueConstraint(columnNames = {"student_id", "event_id"})
+})
 public class StudentBookmarks {
 
     @Id
@@ -15,14 +18,15 @@ public class StudentBookmarks {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long bookMarkId;
 
-    @ManyToOne
-    @JoinColumn(name = "student_id",referencedColumnName = "student_id")
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "student_id", referencedColumnName = "student_id", nullable = false)
     private Students studentEntity;
 
-    @ManyToOne
-    @JoinColumn(name = "event_id",referencedColumnName = "event_id")
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "event_id", referencedColumnName = "event_id", nullable = false)
     private Events events;
 
-    @Column(name = "created_at")
+    @Column(name = "created_at", updatable = false)
+    @CreationTimestamp
     private LocalDateTime createdAt;
 }

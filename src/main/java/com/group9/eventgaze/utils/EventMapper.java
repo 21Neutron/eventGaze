@@ -15,11 +15,14 @@ import java.util.stream.Collectors;
 public class EventMapper {
 
     public static EventResponseDTO toEventResponseDTO(Events event) {
+        if (event == null) {
+            return null;
+        }
         EventResponseDTO dto = new EventResponseDTO();
         dto.setEventId(event.getEventId());
         dto.setEventName(event.getEventName());
         dto.setEventDescription(event.getEventDescription());
-        dto.setEventDate(event.getEventDate().toString()); // Format as needed
+        dto.setEventDate(event.getEventDate() != null ? event.getEventDate().toString() : null); // Format as needed
         dto.setEventTags(event.getEventTags());
         dto.setEventArt(event.getEventArt());
         dto.setEventVenue(event.getEventVenue());
@@ -30,6 +33,9 @@ public class EventMapper {
     }
 
     private static CollegeDTO toCollegeDTO(Colleges college) {
+        if (college == null) {
+            return null;
+        }
         CollegeDTO dto = new CollegeDTO();
         dto.setCollegeId(college.getCollegeId());
         dto.setCollegeName(college.getCollegeName());
@@ -37,6 +43,9 @@ public class EventMapper {
     }
 
     private static PublisherDTO toPublisherDTO(Publishers publisher) {
+        if (publisher == null) {
+            return null;
+        }
         PublisherDTO dto = new PublisherDTO();
         dto.setPublisherId(publisher.getPublisherId());
         dto.setPublisherOrgName(publisher.getPublisherOrgName());

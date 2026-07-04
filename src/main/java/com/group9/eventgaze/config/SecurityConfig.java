@@ -1,16 +1,23 @@
 package com.group9.eventgaze.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.group9.eventgaze.entity.dto.ErrorResponse;
 import com.group9.eventgaze.service.CustomUserDetailsService;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+import java.time.LocalDateTime;
 
 @Configuration
 public class SecurityConfig {
@@ -24,6 +31,16 @@ public class SecurityConfig {
     @Autowired
     private JwtAuthenticationFilter jwtAuthenticationFilter;
 
+    @Autowired(required = false)
+    private ObjectMapper objectMapper;
+
+    private ObjectMapper getObjectMapper() {
+        if (objectMapper == null) {
+            objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
+        }
+        return objectMapper;
+    }
+
     @Bean
     public BCryptPasswordEncoder bCryptPasswordEncoder() {
         return new BCryptPasswordEncoder();
@@ -33,32 +50,67 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http.csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-
                         // Publicly accessible endpoints
-
                         .requestMatchers("/eventgaze/auth/**").permitAll()
-                        .requestMatchers(
-                                                    "/eventgaze/events/eventId/id/**","/eventgaze/events/getAll",
-                                                    "/eventgaze/events/category/id/**").permitAll()
+                        .requestMatchers("/eventgaze/collegeList/**").permitAll()
+                        .requestMatchers("/eventgaze/category/**").permitAll()
+                        .requestMatchers("/error").permitAll()
+                        .requestMatchers(HttpMethod.GET,
+                                "/eventgaze/events/getAll",
+                                "/eventgaze/events/eventId/id/**",
+                                "/eventgaze/events/category/id/**",
+                                "/eventgaze/events/college/id/**").permitAll()
 
-
-                        .requestMatchers("/eventgaze/collegeList/getAll","/eventgaze/events/create",
-                                                   "/eventgaze/collegeList/id/**").permitAll()
-                        .requestMatchers("/eventgaze/category/getAll","/error").permitAll()
-
-                        // Role-based secured endpoints
-
-                 //       .requestMatchers(HttpMethod.POST, "/eventgaze/events/create").hasAnyRole("PUBLISHER","STUDENT")
+                        // Role-based secured endpoints for PUBLISHER
+                        .requestMatchers(HttpMethod.POST, "/eventgaze/events/create").hasRole("PUBLISHER")
                         .requestMatchers(HttpMethod.PUT, "/eventgaze/events/eventEdit/id/**").hasRole("PUBLISHER")
                         .requestMatchers(HttpMethod.DELETE, "/eventgaze/events/id/**").hasRole("PUBLISHER")
+
+                        // Role-based secured endpoints for bookmarks (STUDENT)
+                        .requestMatchers("/eventgaze/bookmarks/**").hasRole("STUDENT")
+
+                        // General event endpoints accessible to authenticated users (STUDENT and PUBLISHER)
                         .requestMatchers("/eventgaze/events/**").hasAnyRole("STUDENT", "PUBLISHER")
+
+                        // All other endpoints require authentication
                         .anyRequest().authenticated()
+                )
+                .exceptionHandling(exceptionHandling -> exceptionHandling
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                            response.setContentType("application/json");
+                            response.setCharacterEncoding("UTF-8");
+                            ErrorResponse errorResponse = new ErrorResponse(
+                                    LocalDateTime.now(),
+                                    HttpStatus.UNAUTHORIZED.value(),
+                                    HttpStatus.UNAUTHORIZED.getReasonPhrase(),
+                                    authException.getMessage() != null && !authException.getMessage().isBlank()
+                                            ? authException.getMessage()
+                                            : "Full authentication is required to access this resource",
+                                    request.getRequestURI()
+                            );
+                            response.getWriter().write(getObjectMapper().writeValueAsString(errorResponse));
+                        })
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                            response.setContentType("application/json");
+                            response.setCharacterEncoding("UTF-8");
+                            ErrorResponse errorResponse = new ErrorResponse(
+                                    LocalDateTime.now(),
+                                    HttpStatus.FORBIDDEN.value(),
+                                    HttpStatus.FORBIDDEN.getReasonPhrase(),
+                                    accessDeniedException.getMessage() != null && !accessDeniedException.getMessage().isBlank()
+                                            ? accessDeniedException.getMessage()
+                                            : "Access is denied",
+                                    request.getRequestURI()
+                            );
+                            response.getWriter().write(getObjectMapper().writeValueAsString(errorResponse));
+                        })
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
-
 
     // Define an AuthenticationManager Bean
     @Bean
@@ -70,5 +122,4 @@ public class SecurityConfig {
 
         return authenticationManagerBuilder.build();
     }
-
 }
