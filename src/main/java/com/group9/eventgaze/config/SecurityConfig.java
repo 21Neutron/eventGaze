@@ -51,6 +51,10 @@ public class SecurityConfig {
         http.csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         // Publicly accessible endpoints
+                        .requestMatchers(
+                                "/v3/api-docs/**",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html").permitAll()
                         .requestMatchers("/eventgaze/auth/**").permitAll()
                         .requestMatchers("/eventgaze/collegeList/**").permitAll()
                         .requestMatchers("/eventgaze/category/**").permitAll()
