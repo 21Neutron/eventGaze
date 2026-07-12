@@ -7,6 +7,8 @@ import com.group9.eventgaze.repository.CollegesRepo;
 import com.group9.eventgaze.repository.EventsRepo;
 import com.group9.eventgaze.repository.PublishersRepo;
 import jakarta.persistence.EntityNotFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -23,6 +25,8 @@ import java.util.Optional;
 
 @Service
 public class EventsService {
+
+    private static final Logger log = LoggerFactory.getLogger(EventsService.class);
 
     @Autowired
     private EventsRepo eventsRepo;
@@ -135,6 +139,8 @@ public class EventsService {
         Long authenticatedUserId = getAuthenticatedUserId();
         verifyEventOwnership(event, authenticatedUserId);
 
+        deleteArtworkIfPresent(event.getEventArt());
+
         eventsRepo.delete(event);
     }
 
@@ -162,9 +168,68 @@ public class EventsService {
             if (newEvent.getEventCategory() != null) {
                 oldEvent.setEventCategory(newEvent.getEventCategory());
             }
+            if (newEvent.getEventArt() != null) {
+                if (!newEvent.getEventArt().equals(oldEvent.getEventArt())) {
+                    if (oldEvent.getEventArt() != null && !oldEvent.getEventArt().isBlank()) {
+                        deleteArtworkIfPresent(oldEvent.getEventArt());
+                    }
+                    oldEvent.setEventArt(newEvent.getEventArt().isBlank() ? null : newEvent.getEventArt());
+                }
+            }
 
             eventsRepo.save(oldEvent);
         }
         return oldEvent;
+    }
+
+    /**
+     * Extracts the S3 object key from an S3 artwork URL.
+     *
+     * @param url S3 URL or raw key
+     * @return Extracted S3 key, or null
+     */
+    public String extractKeyFromUrl(String url) {
+        return S3Service.extractKeyFromUrl(url, s3Service != null ? s3Service.getBucketName() : null);
+    }
+
+    /**
+     * Checks if the artwork URL or key represents a default placeholder.
+     *
+     * @param urlOrKey The URL or key to check
+     * @return true if placeholder, false otherwise
+     */
+    public boolean isDefaultPlaceholder(String urlOrKey) {
+        return S3Service.isPlaceholder(urlOrKey);
+    }
+
+    /**
+     * Deletes the event artwork from S3 if present and not a default placeholder.
+     * Gracefully ignores any deletion errors to prevent blocking DB operations.
+     *
+     * @param artworkUrl The artwork URL to delete
+     */
+    private void deleteArtworkIfPresent(String artworkUrl) {
+        if (artworkUrl == null || artworkUrl.isBlank()) {
+            return;
+        }
+        if (s3Service == null) {
+            return;
+        }
+        if (isDefaultPlaceholder(artworkUrl)) {
+            log.info("Skipping S3 deletion for default placeholder artwork: {}", artworkUrl);
+            return;
+        }
+        try {
+            String key = extractKeyFromUrl(artworkUrl);
+            if (key != null && !key.isBlank()) {
+                if (isDefaultPlaceholder(key)) {
+                    log.info("Skipping S3 deletion for placeholder key: {}", key);
+                    return;
+                }
+                s3Service.deleteFile(key);
+            }
+        } catch (Exception e) {
+            log.error("Failed to delete S3 artwork for URL '{}': {}", artworkUrl, e.getMessage(), e);
+        }
     }
 }

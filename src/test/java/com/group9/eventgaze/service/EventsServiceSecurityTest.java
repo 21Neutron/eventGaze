@@ -197,4 +197,164 @@ class EventsServiceSecurityTest {
 
         assertThrows(EntityNotFoundException.class, () -> eventsService.updateEventById(999L, new Events()));
     }
+
+    @Test
+    void testDeleteEventByIdWithArtworkTriggersS3Deletion() {
+        Users ownerUser = new Users();
+        ownerUser.setUserId(10L);
+
+        Publishers publisher = new Publishers();
+        publisher.setUsers(ownerUser);
+
+        Events event = new Events();
+        event.setEventId(1L);
+        event.setPublishers(publisher);
+        event.setEventArt("https://eventgazeeventimages.s3.amazonaws.com/events/flyer-123.png");
+
+        when(eventsRepo.findById(1L)).thenReturn(Optional.of(event));
+
+        eventsService.deleteEventById(1L);
+
+        verify(s3Service).deleteFile("events/flyer-123.png");
+        verify(eventsRepo).delete(event);
+    }
+
+    @Test
+    void testDeleteEventByIdWithRegionalArtworkUrlTriggersS3Deletion() {
+        Users ownerUser = new Users();
+        ownerUser.setUserId(10L);
+
+        Publishers publisher = new Publishers();
+        publisher.setUsers(ownerUser);
+
+        Events event = new Events();
+        event.setEventId(2L);
+        event.setPublishers(publisher);
+        event.setEventArt("https://bucket.s3.region.amazonaws.com/events/key.png");
+
+        when(eventsRepo.findById(2L)).thenReturn(Optional.of(event));
+
+        eventsService.deleteEventById(2L);
+
+        verify(s3Service).deleteFile("events/key.png");
+        verify(eventsRepo).delete(event);
+    }
+
+    @Test
+    void testDeleteEventByIdWithPlaceholderArtworkDoesNotTriggerS3Deletion() {
+        Users ownerUser = new Users();
+        ownerUser.setUserId(10L);
+
+        Publishers publisher = new Publishers();
+        publisher.setUsers(ownerUser);
+
+        Events event = new Events();
+        event.setEventId(3L);
+        event.setPublishers(publisher);
+        event.setEventArt("https://bucket.s3.amazonaws.com/events/default-poster.png");
+
+        when(eventsRepo.findById(3L)).thenReturn(Optional.of(event));
+
+        eventsService.deleteEventById(3L);
+
+        verify(s3Service, never()).deleteFile(anyString());
+        verify(eventsRepo).delete(event);
+    }
+
+    @Test
+    void testDeleteEventByIdWhenS3DeletionFailsStillDeletesFromRepo() {
+        Users ownerUser = new Users();
+        ownerUser.setUserId(10L);
+
+        Publishers publisher = new Publishers();
+        publisher.setUsers(ownerUser);
+
+        Events event = new Events();
+        event.setEventId(4L);
+        event.setPublishers(publisher);
+        event.setEventArt("https://bucket.s3.amazonaws.com/events/fail-flyer.png");
+
+        when(eventsRepo.findById(4L)).thenReturn(Optional.of(event));
+        doThrow(new RuntimeException("Simulated S3 failure")).when(s3Service).deleteFile(anyString());
+
+        assertDoesNotThrow(() -> eventsService.deleteEventById(4L));
+        verify(eventsRepo).delete(event);
+    }
+
+    @Test
+    void testUpdateEventByIdWithNewArtworkTriggersOldArtworkDeletion() {
+        Users ownerUser = new Users();
+        ownerUser.setUserId(10L);
+
+        Publishers publisher = new Publishers();
+        publisher.setUsers(ownerUser);
+
+        Events oldEvent = new Events();
+        oldEvent.setEventId(5L);
+        oldEvent.setPublishers(publisher);
+        oldEvent.setEventArt("https://bucket.s3.amazonaws.com/events/old-art.png");
+
+        when(eventsRepo.findById(5L)).thenReturn(Optional.of(oldEvent));
+        when(eventsRepo.save(any(Events.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Events updateData = new Events();
+        updateData.setEventArt("https://bucket.s3.amazonaws.com/events/new-art.png");
+
+        Events result = eventsService.updateEventById(5L, updateData);
+
+        verify(s3Service).deleteFile("events/old-art.png");
+        assertEquals("https://bucket.s3.amazonaws.com/events/new-art.png", result.getEventArt());
+        verify(eventsRepo).save(oldEvent);
+    }
+
+    @Test
+    void testUpdateEventByIdSameArtworkDoesNotTriggerS3Deletion() {
+        Users ownerUser = new Users();
+        ownerUser.setUserId(10L);
+
+        Publishers publisher = new Publishers();
+        publisher.setUsers(ownerUser);
+
+        Events oldEvent = new Events();
+        oldEvent.setEventId(6L);
+        oldEvent.setPublishers(publisher);
+        oldEvent.setEventArt("https://bucket.s3.amazonaws.com/events/same-art.png");
+
+        when(eventsRepo.findById(6L)).thenReturn(Optional.of(oldEvent));
+        when(eventsRepo.save(any(Events.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Events updateData = new Events();
+        updateData.setEventArt("https://bucket.s3.amazonaws.com/events/same-art.png");
+
+        eventsService.updateEventById(6L, updateData);
+
+        verify(s3Service, never()).deleteFile(anyString());
+        verify(eventsRepo).save(oldEvent);
+    }
+
+    @Test
+    void testUpdateEventByIdNullArtworkPreservesOldArtworkAndDoesNotTriggerS3Deletion() {
+        Users ownerUser = new Users();
+        ownerUser.setUserId(10L);
+
+        Publishers publisher = new Publishers();
+        publisher.setUsers(ownerUser);
+
+        Events oldEvent = new Events();
+        oldEvent.setEventId(7L);
+        oldEvent.setPublishers(publisher);
+        oldEvent.setEventArt("https://bucket.s3.amazonaws.com/events/stay-art.png");
+
+        when(eventsRepo.findById(7L)).thenReturn(Optional.of(oldEvent));
+        when(eventsRepo.save(any(Events.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Events updateData = new Events();
+        updateData.setEventName("Updated Title Only");
+
+        Events result = eventsService.updateEventById(7L, updateData);
+
+        verify(s3Service, never()).deleteFile(anyString());
+        assertEquals("https://bucket.s3.amazonaws.com/events/stay-art.png", result.getEventArt());
+        verify(eventsRepo).save(oldEvent);
+    }
 }

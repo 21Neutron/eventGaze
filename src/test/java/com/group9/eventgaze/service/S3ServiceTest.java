@@ -177,4 +177,100 @@ class S3ServiceTest {
         assertEquals(TEST_BUCKET, captor.getValue().bucket());
         assertEquals("events/some-image.jpg", captor.getValue().key());
     }
+
+    @Test
+    void testExtractKeyFromUrl_virtualHostedStandard() {
+        String url = "https://" + TEST_BUCKET + ".s3.amazonaws.com/events/uuid-poster.png";
+        String key = s3Service.extractKeyFromUrl(url);
+        assertEquals("events/uuid-poster.png", key);
+    }
+
+    @Test
+    void testExtractKeyFromUrl_virtualHostedWithRegion() {
+        String url = "https://" + TEST_BUCKET + ".s3.us-west-2.amazonaws.com/events/special/flyer.jpeg";
+        String key = s3Service.extractKeyFromUrl(url);
+        assertEquals("events/special/flyer.jpeg", key);
+    }
+
+    @Test
+    void testExtractKeyFromUrl_pathStyle() {
+        String url = "https://s3.amazonaws.com/" + TEST_BUCKET + "/events/image.png";
+        String key = s3Service.extractKeyFromUrl(url);
+        assertEquals("events/image.png", key);
+
+        String regionalPathStyle = "https://s3.eu-central-1.amazonaws.com/" + TEST_BUCKET + "/events/image.png";
+        assertEquals("events/image.png", s3Service.extractKeyFromUrl(regionalPathStyle));
+    }
+
+    @Test
+    void testExtractKeyFromUrl_alreadyRawKey() {
+        assertEquals("events/direct-key.png", s3Service.extractKeyFromUrl("events/direct-key.png"));
+        assertEquals("events/direct-key.png", s3Service.extractKeyFromUrl("/events/direct-key.png"));
+    }
+
+    @Test
+    void testExtractKeyFromUrl_withQueryParams() {
+        String url = "https://" + TEST_BUCKET + ".s3.amazonaws.com/events/key.png?AWSAccessKeyId=123&Signature=abc";
+        assertEquals("events/key.png", s3Service.extractKeyFromUrl(url));
+    }
+
+    @Test
+    void testExtractKeyFromUrl_urlDecoded() {
+        String url = "https://" + TEST_BUCKET + ".s3.amazonaws.com/events/my%20test%20flyer.png";
+        assertEquals("events/my test flyer.png", s3Service.extractKeyFromUrl(url));
+    }
+
+    @Test
+    void testExtractKeyFromUrl_nullOrBlank() {
+        assertNull(s3Service.extractKeyFromUrl(null));
+        assertNull(s3Service.extractKeyFromUrl(""));
+        assertNull(s3Service.extractKeyFromUrl("   "));
+    }
+
+    @Test
+    void testIsDefaultPlaceholder() {
+        assertTrue(s3Service.isDefaultPlaceholder("default.png"));
+        assertTrue(s3Service.isDefaultPlaceholder("https://bucket.s3.amazonaws.com/events/default-poster.png"));
+        assertTrue(s3Service.isDefaultPlaceholder("https://bucket.s3.amazonaws.com/placeholder.png"));
+        assertTrue(s3Service.isDefaultPlaceholder("https://via.placeholder.com/300x200"));
+        assertTrue(s3Service.isDefaultPlaceholder("/images/default_banner.jpg"));
+
+        assertFalse(s3Service.isDefaultPlaceholder("events/7cfb901d-real-flyer.png"));
+        assertFalse(s3Service.isDefaultPlaceholder("https://" + TEST_BUCKET + ".s3.amazonaws.com/events/cool-concert.png"));
+        assertFalse(s3Service.isDefaultPlaceholder(null));
+        assertFalse(s3Service.isDefaultPlaceholder(""));
+    }
+
+    @Test
+    void testDeleteFile_skipsPlaceholder() {
+        s3Service.deleteFile("events/default-image.png");
+        s3Service.deleteFile("placeholder.jpg");
+        s3Service.deleteFile("");
+        s3Service.deleteFile(null);
+
+        verify(s3Client, never()).deleteObject(any(DeleteObjectRequest.class));
+    }
+
+    @Test
+    void testDeleteFile_handlesExceptionGracefully() {
+        when(s3Client.deleteObject(any(DeleteObjectRequest.class)))
+                .thenThrow(new RuntimeException("Simulated S3 network failure"));
+
+        assertDoesNotThrow(() -> s3Service.deleteFile("events/valid-image.png"));
+        verify(s3Client).deleteObject(any(DeleteObjectRequest.class));
+    }
+
+    @Test
+    void testDeleteFileByUrl() {
+        when(s3Client.deleteObject(any(DeleteObjectRequest.class)))
+                .thenReturn(DeleteObjectResponse.builder().build());
+
+        String url = "https://" + TEST_BUCKET + ".s3.amazonaws.com/events/sample-art.png";
+        s3Service.deleteFileByUrl(url);
+
+        ArgumentCaptor<DeleteObjectRequest> captor = ArgumentCaptor.forClass(DeleteObjectRequest.class);
+        verify(s3Client).deleteObject(captor.capture());
+        assertEquals(TEST_BUCKET, captor.getValue().bucket());
+        assertEquals("events/sample-art.png", captor.getValue().key());
+    }
 }
