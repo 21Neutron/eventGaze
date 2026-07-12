@@ -16,6 +16,9 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Set;
 import java.util.UUID;
 
@@ -113,12 +116,13 @@ public class S3Service {
     }
 
     /**
-     * Deletes an object from S3 by its key.
+     * Deletes an object from S3 by its key. Gracefully ignores placeholder/default keys and any S3 errors.
      *
      * @param key The key of the object to delete
      */
     public void deleteFile(String key) {
-        if (key == null || key.isBlank()) {
+        if (key == null || key.isBlank() || isDefaultPlaceholder(key)) {
+            log.info("Skipping deletion of S3 key (null, blank, or placeholder): '{}'", key);
             return;
         }
         try {
@@ -131,6 +135,150 @@ public class S3Service {
         } catch (Exception e) {
             log.error("Failed to delete file from S3: bucket={}, key={}", bucketName, key, e);
         }
+    }
+
+    /**
+     * Deletes an object from S3 given its full URL or key. Gracefully ignores default placeholders and errors.
+     *
+     * @param url S3 URL or object key
+     */
+    public void deleteFileByUrl(String url) {
+        if (url == null || url.isBlank() || isDefaultPlaceholder(url)) {
+            log.info("Skipping deletion of S3 URL (null, blank, or placeholder): '{}'", url);
+            return;
+        }
+        String key = extractKeyFromUrl(url);
+        deleteFile(key);
+    }
+
+    /**
+     * Extracts the S3 object key from a full S3 URL or returns the key if already formatted.
+     * Handles virtual-hosted style (e.g. https://bucket.s3.region.amazonaws.com/events/key.png,
+     * https://bucket.s3.amazonaws.com/events/key.png) and path-style URLs
+     * (e.g. https://s3.amazonaws.com/bucket/events/key.png).
+     *
+     * @param url S3 URL or raw object key
+     * @return Extracted S3 object key, or null if invalid/empty
+     */
+    public String extractKeyFromUrl(String url) {
+        return extractKeyFromUrl(url, this.bucketName);
+    }
+
+    /**
+     * Helper to extract the S3 object key from an S3 URL with an optional known bucket name.
+     *
+     * @param url S3 URL or raw object key
+     * @param bucketName Expected S3 bucket name (optional)
+     * @return Extracted S3 key, or null if invalid/empty
+     */
+    public static String extractKeyFromUrl(String url, String bucketName) {
+        if (url == null || url.isBlank()) {
+            return null;
+        }
+
+        String trimmed = url.trim();
+
+        // If not a full URL (no http/https scheme), treat directly as key
+        if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
+            return cleanKey(trimmed);
+        }
+
+        try {
+            URI uri = URI.create(trimmed);
+            String path = uri.getPath();
+            if (path == null || path.isBlank()) {
+                return null;
+            }
+
+            // Remove leading slashes
+            while (path.startsWith("/")) {
+                path = path.substring(1);
+            }
+
+            String host = uri.getHost() != null ? uri.getHost().toLowerCase() : "";
+
+            // If path-style URL or prefixed with bucket name
+            if (bucketName != null && !bucketName.isBlank() && path.startsWith(bucketName + "/")) {
+                path = path.substring(bucketName.length() + 1);
+            } else if (host.startsWith("s3.") || host.startsWith("s3-") || host.equals("s3.amazonaws.com")) {
+                // First path segment in path-style URLs is the bucket name
+                int firstSlash = path.indexOf('/');
+                if (firstSlash != -1 && firstSlash < path.length() - 1) {
+                    path = path.substring(firstSlash + 1);
+                }
+            }
+
+            return cleanKey(path);
+        } catch (Exception e) {
+            log.warn("Failed to parse S3 key using URI for '{}', falling back to string extraction: {}", url, e.getMessage());
+            return extractKeyFallback(trimmed, bucketName);
+        }
+    }
+
+    private static String extractKeyFallback(String url, String bucketName) {
+        try {
+            String withoutScheme = url.replaceFirst("^https?://", "");
+            int queryIndex = withoutScheme.indexOf('?');
+            if (queryIndex != -1) {
+                withoutScheme = withoutScheme.substring(0, queryIndex);
+            }
+            int slashIndex = withoutScheme.indexOf('/');
+            if (slashIndex == -1 || slashIndex == withoutScheme.length() - 1) {
+                return null;
+            }
+            String path = withoutScheme.substring(slashIndex + 1);
+            if (bucketName != null && !bucketName.isBlank() && path.startsWith(bucketName + "/")) {
+                path = path.substring(bucketName.length() + 1);
+            }
+            return cleanKey(path);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static String cleanKey(String key) {
+        if (key == null || key.isBlank()) {
+            return null;
+        }
+        while (key.startsWith("/")) {
+            key = key.substring(1);
+        }
+        try {
+            key = URLDecoder.decode(key, StandardCharsets.UTF_8);
+        } catch (Exception ignored) {
+        }
+        return key.isBlank() ? null : key;
+    }
+
+    /**
+     * Checks whether an artwork URL or key is a default placeholder image that should not be deleted.
+     *
+     * @param urlOrKey The URL or key to check
+     * @return true if the image is considered a default placeholder, false otherwise
+     */
+    public boolean isDefaultPlaceholder(String urlOrKey) {
+        return isPlaceholder(urlOrKey);
+    }
+
+    public static boolean isPlaceholder(String urlOrKey) {
+        if (urlOrKey == null || urlOrKey.isBlank()) {
+            return false;
+        }
+        String lower = urlOrKey.trim().toLowerCase();
+
+        if (lower.contains("placeholder") || lower.contains("dummyimage") || lower.contains("picsum.photos")) {
+            return true;
+        }
+
+        if (lower.contains("default")) {
+            return true;
+        }
+
+        if (lower.startsWith("/static/") || lower.startsWith("/assets/") || lower.startsWith("/images/")) {
+            return true;
+        }
+
+        return false;
     }
 
     /**
