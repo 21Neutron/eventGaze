@@ -13,6 +13,7 @@ import com.group9.eventgaze.repository.UsersRepo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class SignUpService {
@@ -31,8 +32,36 @@ public class SignUpService {
     @Autowired
     private BCryptPasswordEncoder bCryptPasswordEncoder;
 
-    public void registerStudent(StudentSignUpDTO studentDTO){
+    public SignUpService() {
+    }
 
+    public SignUpService(UsersRepo usersRepo, StudentsRepo studentsRepo,
+                         PublishersRepo publishersRepo, CollegesRepo collegesRepo,
+                         BCryptPasswordEncoder bCryptPasswordEncoder) {
+        this.usersRepo = usersRepo;
+        this.studentsRepo = studentsRepo;
+        this.publishersRepo = publishersRepo;
+        this.collegesRepo = collegesRepo;
+        this.bCryptPasswordEncoder = bCryptPasswordEncoder;
+    }
+
+    @Transactional
+    public void registerStudent(StudentSignUpDTO studentDTO) {
+        if (studentDTO == null) {
+            throw new IllegalArgumentException("Student sign up data cannot be null");
+        }
+        if (studentDTO.getUserEmail() == null || studentDTO.getUserEmail().isBlank()) {
+            throw new IllegalArgumentException("Email cannot be null or blank");
+        }
+        if (studentDTO.getUserPassword() == null || studentDTO.getUserPassword().isBlank()) {
+            throw new IllegalArgumentException("Password cannot be null or blank");
+        }
+        if (usersRepo.findByUserEmail(studentDTO.getUserEmail()).isPresent()) {
+            throw new IllegalArgumentException("Email is already registered");
+        }
+        if (studentDTO.getCollegeId() == null) {
+            throw new IllegalArgumentException("Invalid College ID");
+        }
 
         Colleges college = collegesRepo.findById(studentDTO.getCollegeId())
                 .orElseThrow(() -> new IllegalArgumentException("Invalid College ID"));
@@ -54,8 +83,21 @@ public class SignUpService {
 
     }
 
+    @Transactional
+    public void registerPublisher(PublisherSignUpDTO publisherSignUpDTO) {
+        if (publisherSignUpDTO == null) {
+            throw new IllegalArgumentException("Publisher sign up data cannot be null");
+        }
+        if (publisherSignUpDTO.getUserEmail() == null || publisherSignUpDTO.getUserEmail().isBlank()) {
+            throw new IllegalArgumentException("Email cannot be null or blank");
+        }
+        if (publisherSignUpDTO.getUserPassword() == null || publisherSignUpDTO.getUserPassword().isBlank()) {
+            throw new IllegalArgumentException("Password cannot be null or blank");
+        }
+        if (usersRepo.findByUserEmail(publisherSignUpDTO.getUserEmail()).isPresent()) {
+            throw new IllegalArgumentException("Email is already registered");
+        }
 
-    public void registerPublisher(PublisherSignUpDTO publisherSignUpDTO){
         Users users = new Users();
         users.setUserEmail(publisherSignUpDTO.getUserEmail());
         users.setUserPassword(bCryptPasswordEncoder.encode(publisherSignUpDTO.getUserPassword()));
