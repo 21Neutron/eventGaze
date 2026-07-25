@@ -85,4 +85,60 @@ class EventsPaginationTest {
         assertEquals(1, body.getTotalElements());
         verify(eventsService).getEventsByCollegeId(eq(10L), any(Pageable.class));
     }
+
+    @Test
+    void testSearchEvents_WithPagination() {
+        Events event = new Events();
+        event.setEventId(4L);
+        event.setEventName("AI Summit");
+        event.setEventDescription("All about AI and ML");
+        event.setEventTags("tech,ai");
+
+        Page<Events> pagedEvents = new PageImpl<>(List.of(event), PageRequest.of(0, 10), 1);
+        when(eventsService.searchEvents(eq("AI"), any(Pageable.class))).thenReturn(pagedEvents);
+
+        ResponseEntity<?> response = eventsController.searchEvents("AI", 0, 10, "eventId", "ASC");
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertTrue(response.getBody() instanceof Page<?>);
+        Page<?> body = (Page<?>) response.getBody();
+        assertEquals(1, body.getTotalElements());
+        verify(eventsService).searchEvents(eq("AI"), any(Pageable.class));
+    }
+
+    @Test
+    void testGetUpcomingEvents_WithPagination() {
+        Events event = new Events();
+        event.setEventId(5L);
+        event.setEventName("Future Hackathon");
+
+        Page<Events> pagedEvents = new PageImpl<>(List.of(event), PageRequest.of(0, 10), 1);
+        when(eventsService.getUpcomingEvents(any(Pageable.class))).thenReturn(pagedEvents);
+
+        ResponseEntity<?> response = eventsController.getUpcomingEvents(0, 10, "eventId", "ASC");
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertTrue(response.getBody() instanceof Page<?>);
+        Page<?> body = (Page<?>) response.getBody();
+        assertEquals(1, body.getTotalElements());
+        verify(eventsService).getUpcomingEvents(any(Pageable.class));
+    }
+
+    @Test
+    void testGetPastEvents_WithPagination() {
+        Events event = new Events();
+        event.setEventId(6L);
+        event.setEventName("Past Graduation Ceremony");
+
+        Page<Events> pagedEvents = new PageImpl<>(List.of(event), PageRequest.of(0, 10), 1);
+        when(eventsService.getPastEvents(any(Pageable.class))).thenReturn(pagedEvents);
+
+        ResponseEntity<?> response = eventsController.getPastEvents(0, 10, "eventId", "DESC");
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertTrue(response.getBody() instanceof Page<?>);
+        Page<?> body = (Page<?>) response.getBody();
+        assertEquals(1, body.getTotalElements());
+        verify(eventsService).getPastEvents(any(Pageable.class));
+    }
 }

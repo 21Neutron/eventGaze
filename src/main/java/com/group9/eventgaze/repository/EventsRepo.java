@@ -7,6 +7,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Repository
@@ -27,4 +28,10 @@ public interface EventsRepo extends JpaRepository<Events, Long> {
     List<Events> findByPublishers_PublisherId(Long publisherId);
 
     Page<Events> findByPublishers_PublisherId(Long publisherId, Pageable pageable);
+
+    Page<Events> findByEventNameContainingIgnoreCaseOrEventDescriptionContainingIgnoreCaseOrEventTagsContainingIgnoreCase(String name, String desc, String tags, Pageable pageable);
+
+    Page<Events> findByEventDateGreaterThanEqual(LocalDate date, Pageable pageable);
+
+    Page<Events> findByEventDateLessThan(LocalDate date, Pageable pageable);
 }

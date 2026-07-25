@@ -92,7 +92,10 @@ public class SecurityConfig {
                                 "/eventgaze/events/getAll",
                                 "/eventgaze/events/eventId/id/**",
                                 "/eventgaze/events/category/id/**",
-                                "/eventgaze/events/college/id/**").permitAll()
+                                "/eventgaze/events/college/id/**",
+                                "/eventgaze/events/search",
+                                "/eventgaze/events/upcoming",
+                                "/eventgaze/events/past").permitAll()
 
                         // Role-based secured endpoints for PUBLISHER
                         .requestMatchers(HttpMethod.POST, "/eventgaze/events/create").hasRole("PUBLISHER")
