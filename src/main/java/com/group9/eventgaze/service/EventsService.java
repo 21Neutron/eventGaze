@@ -167,4 +167,18 @@ public class EventsService {
         }
         return oldEvent;
     }
+
+    public Page<Events> searchEvents(String query, Pageable pageable) {
+        String searchStr = (query != null) ? query : "";
+        return eventsRepo.findByEventNameContainingIgnoreCaseOrEventDescriptionContainingIgnoreCaseOrEventTagsContainingIgnoreCase(
+                searchStr, searchStr, searchStr, pageable);
+    }
+
+    public Page<Events> getUpcomingEvents(Pageable pageable) {
+        return eventsRepo.findByEventDateGreaterThanEqual(LocalDate.now(), pageable);
+    }
+
+    public Page<Events> getPastEvents(Pageable pageable) {
+        return eventsRepo.findByEventDateLessThan(LocalDate.now(), pageable);
+    }
 }

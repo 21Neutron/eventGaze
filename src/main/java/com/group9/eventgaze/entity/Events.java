@@ -18,7 +18,6 @@ public class Events {
     @Column(name = "event_name", nullable = false)
     private String eventName;
 
-    @Lob
     @Column(name = "event_description", columnDefinition = "TEXT")
     private String eventDescription;
 
