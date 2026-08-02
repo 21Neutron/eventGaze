@@ -19,7 +19,7 @@ EventGaze is a Spring Boot application that provides a RESTful API for event man
 ## Tech Stack
 
 - **Backend**: Java 17, Spring Boot 3.3
-- **Database**: MySQL
+- **Database**: PostgreSQL
 - **Security**: Spring Security with stateless JWT authentication
 - **File Storage**: AWS S3 for storing event artwork
 - **Build Tool**: Maven
@@ -79,7 +79,7 @@ The database schema consists of the following main entities:
 ### Prerequisites
 
 - Java 17 or higher
-- MySQL 8.0 or higher
+- PostgreSQL 14 or higher
 - Maven
 - AWS Account (for S3 storage)
 
@@ -92,9 +92,9 @@ The database schema consists of the following main entities:
 
 ```properties
 # Database configuration
-spring.datasource.url=jdbc:mysql://localhost:3306/eventgaze
-spring.datasource.username=your_username
-spring.datasource.password=your_password
+spring.datasource.url=jdbc:postgresql://localhost:5432/eventgaze
+spring.datasource.username=your_postgres_username
+spring.datasource.password=your_postgres_password
 
 # AWS Configuration
 AWS.ACCESS.KEY.ID=your_access_key
