@@ -1,0 +1,37 @@
+spring:
+  application:
+    name: eventgaze
+  profiles:
+    active: dev
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 100MB
+
+# Default AWS S3 defaults (can be overridden by environment variables or profile)
+AWS:
+  ACCESS:
+    KEY:
+      ID: ${ACCESS_KEY:default_access_key}
+  SECRET:
+    ACCESS:
+      KEY: ${SECRET_ACCESS_KEY:default_secret_key}
+  REGION: ${AWS_REGION:us-east-1}
+  S3:
+    BUCKET_NAME: ${AWS_S3_BUCKET_NAME:eventgazeeventimages}
+
+# Default JWT settings
+JWT:
+  SECRET:
+    KEY: ${JWT_SECRET_KEY:defaultjwtsecretkeywithsufficientlengthforvalidation1234567890}
+jwt:
+  expiration:
+    ms: 86400000
+
+# CORS default allowed origins
+cors:
+  allowed-origins: "*"
+
+logging:
+  level:
+    org.springframework.security: INFO

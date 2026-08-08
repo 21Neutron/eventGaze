@@ -1,0 +1,5 @@
+spring:
+  application:
+    name: eventgaze
+  profiles:
+    active: test
