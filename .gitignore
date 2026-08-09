@@ -31,3 +31,8 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Local developer configs (contains private credentials) ###
+*local*.yaml
+*local*.yml
+*local*.properties

@@ -1,0 +1,47 @@
+# Template for local development with raw credentials.
+# Duplicate this file as 'application-dev-local.yaml' and add your actual local credentials.
+# 'application-dev-local.yaml' is ignored by git and will never be committed.
+
+spring:
+  config:
+    activate:
+      on-profile: dev-local
+  datasource:
+    url: jdbc:postgresql://localhost:5432/eventgaze
+    username: postgres
+    password: your_postgres_password
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    database: postgresql
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    show-sql: true
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          lob:
+            non_contextual_creation: true
+
+# Local AWS Credentials (if using personal AWS S3 account)
+AWS:
+  ACCESS:
+    KEY:
+      ID: your_aws_access_key
+  SECRET:
+    ACCESS:
+      KEY: your_aws_secret_key
+  REGION: us-east-1
+  S3:
+    BUCKET_NAME: your-s3-bucket-name
+
+# Local JWT Secret
+JWT:
+  SECRET:
+    KEY: your_local_jwt_secret_key_minimum_256_bits_length_1234567890
+
+logging:
+  level:
+    org.springframework.security: DEBUG
+    com.group9.eventgaze: DEBUG
