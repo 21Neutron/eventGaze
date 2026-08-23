@@ -1,0 +1,87 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  profiles:
+    active: dev
+  cloud:
+    gateway:
+      globalcors:
+        add-to-simple-url-handler-mapping: true
+        cors-configurations:
+          '[/**]':
+            allowedOrigins: "*"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+              - PATCH
+            allowedHeaders: "*"
+            maxAge: 3600
+      routes:
+        # Auth Service: /eventgaze/auth/** -> http://auth-service:8081 (fallback http://localhost:8081)
+        - id: auth-service
+          uri: ${AUTH_SERVICE_URL:http://auth-service:8081}
+          predicates:
+            - Path=/eventgaze/auth/**
+
+        # Event Service: /eventgaze/events/** -> http://event-service:8082 (fallback http://localhost:8082)
+        - id: event-service-events
+          uri: ${EVENT_SERVICE_URL:http://event-service:8082}
+          predicates:
+            - Path=/eventgaze/events/**
+
+        # Event Service: /eventgaze/category/** -> http://event-service:8082
+        - id: event-service-category
+          uri: ${EVENT_SERVICE_URL:http://event-service:8082}
+          predicates:
+            - Path=/eventgaze/category/**
+
+        # Event Service: /eventgaze/collegeList/** -> http://event-service:8082
+        - id: event-service-collegelist
+          uri: ${EVENT_SERVICE_URL:http://event-service:8082}
+          predicates:
+            - Path=/eventgaze/collegeList/**
+
+        # Bookmark Service: /eventgaze/bookmarks/** -> http://bookmark-service:8083 (fallback http://localhost:8083)
+        - id: bookmark-service
+          uri: ${BOOKMARK_SERVICE_URL:http://bookmark-service:8083}
+          predicates:
+            - Path=/eventgaze/bookmarks/**
+
+        # OpenAPI / Swagger Docs Forwarding Routes
+        - id: auth-docs
+          uri: ${AUTH_SERVICE_URL:http://auth-service:8081}
+          predicates:
+            - Path=/v3/api-docs/auth/**
+          filters:
+            - RewritePath=/v3/api-docs/auth(?<segment>/?.*), /v3/api-docs$\{segment}
+
+        - id: event-docs
+          uri: ${EVENT_SERVICE_URL:http://event-service:8082}
+          predicates:
+            - Path=/v3/api-docs/events/**
+          filters:
+            - RewritePath=/v3/api-docs/events(?<segment>/?.*), /v3/api-docs$\{segment}
+
+        - id: bookmark-docs
+          uri: ${BOOKMARK_SERVICE_URL:http://bookmark-service:8083}
+          predicates:
+            - Path=/v3/api-docs/bookmarks/**
+          filters:
+            - RewritePath=/v3/api-docs/bookmarks(?<segment>/?.*), /v3/api-docs$\{segment}
+
+        - id: swagger-ui
+          uri: ${EVENT_SERVICE_URL:http://event-service:8082}
+          predicates:
+            - Path=/swagger-ui/**, /v3/api-docs/**
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway

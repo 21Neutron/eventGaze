@@ -1,0 +1,45 @@
+# ==========================================
+# Stage 1: Build API Gateway & Dependencies
+# ==========================================
+FROM eclipse-temurin:17-jdk-alpine AS builder
+WORKDIR /workspace
+
+# Copy Maven wrapper and POM files for dependency resolution caching
+COPY mvnw ./
+COPY mvnw.cmd ./
+COPY .mvn .mvn
+COPY pom.xml ./
+COPY common-lib/pom.xml common-lib/
+COPY api-gateway/pom.xml api-gateway/
+
+# Copy sources for common-lib and api-gateway
+COPY common-lib/src common-lib/src
+COPY api-gateway/src api-gateway/src
+
+# Make mvnw executable and build the application
+RUN chmod +x ./mvnw && \
+    ./mvnw clean package -DskipTests -pl common-lib,api-gateway -am
+
+# ==========================================
+# Stage 2: Minimal Runtime Container
+# ==========================================
+FROM eclipse-temurin:17-jre-alpine
+WORKDIR /app
+
+# Run as non-root user for security
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+USER appuser
+
+# Copy built artifact from builder stage
+COPY --from=builder /workspace/api-gateway/target/*.jar app.jar
+
+# Default environment configuration
+ENV SERVER_PORT=8080 \
+    AUTH_SERVICE_URL=http://auth-service:8081 \
+    EVENT_SERVICE_URL=http://event-service:8082 \
+    BOOKMARK_SERVICE_URL=http://bookmark-service:8083 \
+    SPRING_PROFILES_ACTIVE=prod
+
+EXPOSE 8080
+
+ENTRYPOINT ["java", "-Djava.security.egd=file:/dev/./urandom", "-jar", "app.jar"]

@@ -1,0 +1,9 @@
+# Local development profile: Fallback to localhost for standalone microservices
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+AUTH_SERVICE_URL: http://localhost:8081
+EVENT_SERVICE_URL: http://localhost:8082
+BOOKMARK_SERVICE_URL: http://localhost:8083
