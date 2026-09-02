@@ -1,0 +1,24 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: auth-service
+  profiles:
+    active: dev
+
+# Default JWT settings
+JWT:
+  SECRET:
+    KEY: ${JWT_SECRET_KEY:defaultjwtsecretkeywithsufficientlengthforvalidation1234567890}
+jwt:
+  expiration:
+    ms: 86400000
+
+# CORS default allowed origins
+cors:
+  allowed-origins: "*"
+
+logging:
+  level:
+    org.springframework.security: INFO
