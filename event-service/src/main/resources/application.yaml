@@ -1,0 +1,40 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: event-service
+  profiles:
+    active: dev
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 100MB
+
+# Default AWS S3 configuration (overridden by environment variables or profiles)
+AWS:
+  ACCESS:
+    KEY:
+      ID: ${AWS_ACCESS_KEY_ID:${ACCESS_KEY:}}
+  SECRET:
+    ACCESS:
+      KEY: ${AWS_SECRET_ACCESS_KEY:${SECRET_ACCESS_KEY:}}
+  REGION: ${AWS_REGION:us-east-1}
+  S3:
+    BUCKET_NAME: ${AWS_S3_BUCKET_NAME:eventgazeeventimages}
+
+# Default JWT settings
+JWT:
+  SECRET:
+    KEY: ${JWT_SECRET_KEY:defaultjwtsecretkeywithsufficientlengthforvalidation1234567890}
+jwt:
+  expiration:
+    ms: 86400000
+
+# CORS default allowed origins
+cors:
+  allowed-origins: "*"
+
+logging:
+  level:
+    org.springframework.security: INFO
