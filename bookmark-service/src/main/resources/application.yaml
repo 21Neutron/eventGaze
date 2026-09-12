@@ -1,0 +1,41 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: bookmark-service
+  profiles:
+    active: dev
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/eventgaze_bookmarks}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    database: postgresql
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          lob:
+            non_contextual_creation: true
+
+# Default JWT settings
+JWT:
+  SECRET:
+    KEY: ${JWT_SECRET_KEY:defaultjwtsecretkeywithsufficientlengthforvalidation1234567890}
+jwt:
+  expiration:
+    ms: 86400000
+
+# CORS default allowed origins
+cors:
+  allowed-origins: "*"
+
+logging:
+  level:
+    org.springframework.security: INFO
+    com.group9.eventgaze: INFO
