@@ -1,0 +1,109 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: eventgaze-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: eventgaze
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-multiple-dbs.sh:/docker-entrypoint-initdb.d/init-multiple-dbs.sh:ro
+    networks:
+      - eventgaze-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.gateway
+    container_name: eventgaze-api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      AUTH_SERVICE_URL: http://auth-service:8081
+      EVENT_SERVICE_URL: http://event-service:8082
+      BOOKMARK_SERVICE_URL: http://bookmark-service:8083
+    depends_on:
+      - auth-service
+      - event-service
+      - bookmark-service
+    networks:
+      - eventgaze-net
+
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    container_name: eventgaze-auth-service
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/eventgaze_auth
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-defaultjwtsecretkeywithsufficientlengthforvalidation1234567890}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - eventgaze-net
+
+  event-service:
+    build:
+      context: ./event-service
+      dockerfile: Dockerfile
+    container_name: eventgaze-event-service
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/eventgaze_events
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      ACCESS_KEY: ${AWS_ACCESS_KEY_ID:-mock_key}
+      SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-mock_secret}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_S3_BUCKET_NAME: ${AWS_S3_BUCKET_NAME:-eventgazeeventimages}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-defaultjwtsecretkeywithsufficientlengthforvalidation1234567890}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - eventgaze-net
+
+  bookmark-service:
+    build:
+      context: ./bookmark-service
+      dockerfile: Dockerfile
+    container_name: eventgaze-bookmark-service
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/eventgaze_bookmarks
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-defaultjwtsecretkeywithsufficientlengthforvalidation1234567890}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - eventgaze-net
+
+networks:
+  eventgaze-net:
+    driver: bridge
+
+volumes:
+  postgres_data:

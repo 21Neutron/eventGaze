@@ -18,6 +18,9 @@
 	<modules>
 		<module>common-lib</module>
 		<module>api-gateway</module>
+		<module>auth-service</module>
+		<module>event-service</module>
+		<module>bookmark-service</module>
 	</modules>
 
 	<properties>
