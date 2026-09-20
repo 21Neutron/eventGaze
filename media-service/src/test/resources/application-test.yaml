@@ -1,0 +1,44 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: media-service-test
+  config:
+    activate:
+      on-profile: test
+
+AWS:
+  ACCESS:
+    KEY:
+      ID: test-access-key
+  SECRET:
+    ACCESS:
+      KEY: test-secret-key
+  REGION: us-east-1
+  S3:
+    BUCKET_NAME: test-media-bucket
+
+aws:
+  region: us-east-1
+  s3:
+    bucket-name: test-media-bucket
+  access-key-id: test-access-key
+  secret-access-key: test-secret-key
+
+JWT:
+  SECRET:
+    KEY: testjwtsecretkeywithsufficientlengthforvalidation1234567890
+jwt:
+  secret:
+    key: testjwtsecretkeywithsufficientlengthforvalidation1234567890
+  expiration:
+    ms: 86400000
+
+cors:
+  allowed-origins: "*"
+
+logging:
+  level:
+    root: INFO
+    com.group9.eventgaze: DEBUG

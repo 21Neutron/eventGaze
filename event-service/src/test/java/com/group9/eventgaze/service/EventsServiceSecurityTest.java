@@ -109,6 +109,43 @@ class EventsServiceSecurityTest {
     }
 
     @Test
+    void testCreateEventWithExistingArtworkUrl() throws IOException {
+        EventRequestDTO requestDTO = new EventRequestDTO();
+        requestDTO.setEventName("Cloud Summit 2026");
+        requestDTO.setEventDescription("Cloud Architecture");
+        requestDTO.setEventDate("25-11-2026");
+        requestDTO.setEventCategoryId(1L);
+        requestDTO.setColleges(2L);
+        requestDTO.setEventArtUrl("https://bucket.s3.amazonaws.com/events/existing-image.jpg");
+
+        EventCategory category = new EventCategory();
+        category.setCategoryId(1L);
+        when(eventCategoryService.findByIdOrThrow(1L)).thenReturn(category);
+
+        Users authenticatedUser = new Users();
+        authenticatedUser.setUserId(10L);
+        when(usersService.findByIdOrThrow(10L)).thenReturn(authenticatedUser);
+
+        Publishers publisher = new Publishers();
+        publisher.setPublisherId(5L);
+        publisher.setUsers(authenticatedUser);
+        when(publishersService.findByUser(authenticatedUser)).thenReturn(publisher);
+
+        Colleges college = new Colleges();
+        college.setCollegeId(2L);
+        when(collegesService.findById(2L)).thenReturn(college);
+
+        when(eventsRepo.save(any(Events.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        eventsService.createEvent(requestDTO);
+
+        verify(s3Service, never()).uploadFile(any(), any());
+        verify(eventsRepo, times(2)).save(argThat(event ->
+                "https://bucket.s3.amazonaws.com/events/existing-image.jpg".equals(event.getEventArt())
+        ));
+    }
+
+    @Test
     void testDeleteEventByIdOwnerSuccess() {
         Users ownerUser = new Users();
         ownerUser.setUserId(10L);

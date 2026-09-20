@@ -80,6 +80,32 @@ class EventsControllerSecurityTest {
     }
 
     @Test
+    void testCreateEventJsonWithArtworkUrlSuccess() throws Exception {
+        doNothing().when(eventsService).createEvent(any(EventRequestDTO.class));
+
+        String jsonPayload = """
+                {
+                    "eventName": "AI Symposium 2026",
+                    "eventDescription": "Annual artificial intelligence symposium",
+                    "eventDate": "20-12-2026",
+                    "eventCategoryId": 1,
+                    "colleges": 2,
+                    "eventArt": "https://bucket.s3.us-east-1.amazonaws.com/events/ai-symposium.jpg"
+                }
+                """;
+
+        mockMvc.perform(post("/eventgaze/events/create")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(jsonPayload))
+                .andExpect(status().isCreated());
+
+        verify(eventsService).createEvent(argThat(dto ->
+                dto.getEventName().equals("AI Symposium 2026") &&
+                "https://bucket.s3.us-east-1.amazonaws.com/events/ai-symposium.jpg".equals(dto.getEventArtUrl())
+        ));
+    }
+
+    @Test
     void testCreateEventAccessDeniedReturns403() throws Exception {
         doThrow(new AccessDeniedException("User is not authenticated"))
                 .when(eventsService).createEvent(any(EventRequestDTO.class));

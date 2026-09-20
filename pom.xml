@@ -21,6 +21,7 @@
 		<module>auth-service</module>
 		<module>event-service</module>
 		<module>bookmark-service</module>
+		<module>media-service</module>
 	</modules>
 
 	<properties>
@@ -30,6 +31,7 @@
 		<lombok.version>1.18.34</lombok.version>
 		<springdoc.version>2.6.0</springdoc.version>
 		<aws-s3.version>2.29.6</aws-s3.version>
+		<thumbnailator.version>0.4.20</thumbnailator.version>
 	</properties>
 
 	<dependencyManagement>
@@ -74,6 +76,13 @@
 				<groupId>software.amazon.awssdk</groupId>
 				<artifactId>s3</artifactId>
 				<version>${aws-s3.version}</version>
+			</dependency>
+
+			<!-- Thumbnailator for image resizing & compression -->
+			<dependency>
+				<groupId>net.coobird</groupId>
+				<artifactId>thumbnailator</artifactId>
+				<version>${thumbnailator.version}</version>
 			</dependency>
 
 			<!-- Springdoc OpenAPI -->

@@ -33,10 +33,12 @@ services:
       AUTH_SERVICE_URL: http://auth-service:8081
       EVENT_SERVICE_URL: http://event-service:8082
       BOOKMARK_SERVICE_URL: http://bookmark-service:8083
+      MEDIA_SERVICE_URL: http://media-service:8084
     depends_on:
       - auth-service
       - event-service
       - bookmark-service
+      - media-service
     networks:
       - eventgaze-net
 
@@ -98,6 +100,23 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - eventgaze-net
+
+  media-service:
+    build:
+      context: .
+      dockerfile: ./media-service/Dockerfile
+    container_name: eventgaze-media-service
+    ports:
+      - "8084:8084"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      ACCESS_KEY: ${AWS_ACCESS_KEY_ID:-mock_key}
+      SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-mock_secret}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_S3_BUCKET_NAME: ${AWS_S3_BUCKET_NAME:-eventgazeeventimages}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-defaultjwtsecretkeywithsufficientlengthforvalidation1234567890}
     networks:
       - eventgaze-net
 

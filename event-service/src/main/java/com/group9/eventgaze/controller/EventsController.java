@@ -12,6 +12,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -111,7 +112,14 @@ public class EventsController {
         return ResponseEntity.ok(pagedEvents.map(EventMapper::toEventResponseDTO));
     }
 
-    // For creating a new event
+    // For creating a new event via JSON payload
+    @PostMapping(value = "/create", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<String> createEventJson(@RequestBody EventRequestDTO requestDTO) throws IOException {
+        eventsService.createEvent(requestDTO);
+        return ResponseEntity.status(HttpStatus.CREATED).build();
+    }
+
+    // For creating a new event via multipart/form-data or form parameters
     @PostMapping("/create")
     public ResponseEntity<String> createEvent(@ModelAttribute EventRequestDTO requestDTO) throws IOException {
         eventsService.createEvent(requestDTO);

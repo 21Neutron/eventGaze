@@ -1,0 +1,52 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: media-service
+  profiles:
+    active: dev
+  servlet:
+    multipart:
+      max-file-size: 25MB
+      max-request-size: 30MB
+      enabled: true
+
+# Default AWS S3 configuration (overridden by environment variables or profiles)
+AWS:
+  ACCESS:
+    KEY:
+      ID: ${AWS_ACCESS_KEY_ID:${ACCESS_KEY:}}
+  SECRET:
+    ACCESS:
+      KEY: ${AWS_SECRET_ACCESS_KEY:${SECRET_ACCESS_KEY:}}
+  REGION: ${AWS_REGION:us-east-1}
+  S3:
+    BUCKET_NAME: ${AWS_S3_BUCKET_NAME:eventgazeeventimages}
+
+# Alternative aws.* hierarchy for flexible property resolution
+aws:
+  region: ${AWS_REGION:us-east-1}
+  s3:
+    bucket-name: ${AWS_S3_BUCKET_NAME:eventgazeeventimages}
+  access-key-id: ${AWS_ACCESS_KEY_ID:${ACCESS_KEY:}}
+  secret-access-key: ${AWS_SECRET_ACCESS_KEY:${SECRET_ACCESS_KEY:}}
+
+# JWT Configuration
+JWT:
+  SECRET:
+    KEY: ${JWT_SECRET_KEY:defaultjwtsecretkeywithsufficientlengthforvalidation1234567890}
+jwt:
+  secret:
+    key: ${JWT_SECRET_KEY:defaultjwtsecretkeywithsufficientlengthforvalidation1234567890}
+  expiration:
+    ms: 86400000
+
+# CORS default allowed origins
+cors:
+  allowed-origins: "*"
+
+logging:
+  level:
+    org.springframework.security: INFO
+    com.group9.eventgaze: INFO

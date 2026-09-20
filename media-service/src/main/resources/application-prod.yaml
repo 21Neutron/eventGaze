@@ -1,0 +1,10 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+logging:
+  level:
+    root: INFO
+    org.springframework.security: WARN
+    com.group9.eventgaze: INFO

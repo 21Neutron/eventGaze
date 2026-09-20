@@ -53,6 +53,12 @@ spring:
           predicates:
             - Path=/eventgaze/bookmarks/**
 
+        # Media Service: /eventgaze/media/** -> http://media-service:8084 (fallback http://localhost:8084)
+        - id: media-service
+          uri: ${MEDIA_SERVICE_URL:http://media-service:8084}
+          predicates:
+            - Path=/eventgaze/media/**
+
         # OpenAPI / Swagger Docs Forwarding Routes
         - id: auth-docs
           uri: ${AUTH_SERVICE_URL:http://auth-service:8081}
@@ -74,6 +80,13 @@ spring:
             - Path=/v3/api-docs/bookmarks/**
           filters:
             - RewritePath=/v3/api-docs/bookmarks(?<segment>/?.*), /v3/api-docs$\{segment}
+
+        - id: media-docs
+          uri: ${MEDIA_SERVICE_URL:http://media-service:8084}
+          predicates:
+            - Path=/v3/api-docs/media/**
+          filters:
+            - RewritePath=/v3/api-docs/media(?<segment>/?.*), /v3/api-docs$\{segment}
 
         - id: swagger-ui
           uri: ${EVENT_SERVICE_URL:http://event-service:8082}

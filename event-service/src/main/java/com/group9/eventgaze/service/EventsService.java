@@ -103,7 +103,9 @@ public class EventsService {
         if (eventRequestDTO.getEventArt() != null && !eventRequestDTO.getEventArt().isEmpty()) {
             String fileUrl = s3Service.uploadFile("events", eventRequestDTO.getEventArt());
             savedEvent.setEventArt(fileUrl);
-
+            eventsRepo.save(savedEvent);
+        } else if (eventRequestDTO.getEventArtUrl() != null && !eventRequestDTO.getEventArtUrl().isBlank()) {
+            savedEvent.setEventArt(eventRequestDTO.getEventArtUrl().trim());
             eventsRepo.save(savedEvent);
         }
     }
