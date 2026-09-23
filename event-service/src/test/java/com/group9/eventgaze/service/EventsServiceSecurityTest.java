@@ -141,7 +141,44 @@ class EventsServiceSecurityTest {
 
         verify(s3Service, never()).uploadFile(any(), any());
         verify(eventsRepo, times(2)).save(argThat(event ->
-                "https://bucket.s3.amazonaws.com/events/existing-image.jpg".equals(event.getEventArt())
+                "events/existing-image.jpg".equals(event.getEventArt())
+        ));
+    }
+
+    @Test
+    void testCreateEventWithRelativeEventArtKey() throws IOException {
+        EventRequestDTO requestDTO = new EventRequestDTO();
+        requestDTO.setEventName("Cloud Summit 2026 Key");
+        requestDTO.setEventDescription("Cloud Architecture Key");
+        requestDTO.setEventDate("25-11-2026");
+        requestDTO.setEventCategoryId(1L);
+        requestDTO.setColleges(2L);
+        requestDTO.setEventArtKey("events/key-from-media-service.jpg");
+
+        EventCategory category = new EventCategory();
+        category.setCategoryId(1L);
+        when(eventCategoryService.findByIdOrThrow(1L)).thenReturn(category);
+
+        Users authenticatedUser = new Users();
+        authenticatedUser.setUserId(10L);
+        when(usersService.findByIdOrThrow(10L)).thenReturn(authenticatedUser);
+
+        Publishers publisher = new Publishers();
+        publisher.setPublisherId(5L);
+        publisher.setUsers(authenticatedUser);
+        when(publishersService.findByUser(authenticatedUser)).thenReturn(publisher);
+
+        Colleges college = new Colleges();
+        college.setCollegeId(2L);
+        when(collegesService.findById(2L)).thenReturn(college);
+
+        when(eventsRepo.save(any(Events.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        eventsService.createEvent(requestDTO);
+
+        verify(s3Service, never()).uploadFile(any(), any());
+        verify(eventsRepo, times(2)).save(argThat(event ->
+                "events/key-from-media-service.jpg".equals(event.getEventArt())
         ));
     }
 
@@ -246,11 +283,32 @@ class EventsServiceSecurityTest {
         Events event = new Events();
         event.setEventId(1L);
         event.setPublishers(publisher);
-        event.setEventArt("https://eventgazeeventimages.s3.amazonaws.com/events/flyer-123.png");
+        event.setEventArt("events/flyer-123.png");
 
         when(eventsRepo.findById(1L)).thenReturn(Optional.of(event));
 
         eventsService.deleteEventById(1L);
+
+        verify(s3Service).deleteFile("events/flyer-123.png");
+        verify(eventsRepo).delete(event);
+    }
+
+    @Test
+    void testDeleteEventByIdWithFullArtworkUrlTriggersS3Deletion() {
+        Users ownerUser = new Users();
+        ownerUser.setUserId(10L);
+
+        Publishers publisher = new Publishers();
+        publisher.setUsers(ownerUser);
+
+        Events event = new Events();
+        event.setEventId(101L);
+        event.setPublishers(publisher);
+        event.setEventArt("https://eventgazeeventimages.s3.amazonaws.com/events/flyer-123.png");
+
+        when(eventsRepo.findById(101L)).thenReturn(Optional.of(event));
+
+        eventsService.deleteEventById(101L);
 
         verify(s3Service).deleteFile("events/flyer-123.png");
         verify(eventsRepo).delete(event);
@@ -329,7 +387,7 @@ class EventsServiceSecurityTest {
         Events oldEvent = new Events();
         oldEvent.setEventId(5L);
         oldEvent.setPublishers(publisher);
-        oldEvent.setEventArt("https://bucket.s3.amazonaws.com/events/old-art.png");
+        oldEvent.setEventArt("events/old-art.png");
 
         when(eventsRepo.findById(5L)).thenReturn(Optional.of(oldEvent));
         when(eventsRepo.save(any(Events.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -340,7 +398,7 @@ class EventsServiceSecurityTest {
         Events result = eventsService.updateEventById(5L, updateData);
 
         verify(s3Service).deleteFile("events/old-art.png");
-        assertEquals("https://bucket.s3.amazonaws.com/events/new-art.png", result.getEventArt());
+        assertEquals("events/new-art.png", result.getEventArt());
         verify(eventsRepo).save(oldEvent);
     }
 
@@ -355,7 +413,7 @@ class EventsServiceSecurityTest {
         Events oldEvent = new Events();
         oldEvent.setEventId(6L);
         oldEvent.setPublishers(publisher);
-        oldEvent.setEventArt("https://bucket.s3.amazonaws.com/events/same-art.png");
+        oldEvent.setEventArt("events/same-art.png");
 
         when(eventsRepo.findById(6L)).thenReturn(Optional.of(oldEvent));
         when(eventsRepo.save(any(Events.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -380,7 +438,7 @@ class EventsServiceSecurityTest {
         Events oldEvent = new Events();
         oldEvent.setEventId(7L);
         oldEvent.setPublishers(publisher);
-        oldEvent.setEventArt("https://bucket.s3.amazonaws.com/events/stay-art.png");
+        oldEvent.setEventArt("events/stay-art.png");
 
         when(eventsRepo.findById(7L)).thenReturn(Optional.of(oldEvent));
         when(eventsRepo.save(any(Events.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -391,7 +449,7 @@ class EventsServiceSecurityTest {
         Events result = eventsService.updateEventById(7L, updateData);
 
         verify(s3Service, never()).deleteFile(anyString());
-        assertEquals("https://bucket.s3.amazonaws.com/events/stay-art.png", result.getEventArt());
+        assertEquals("events/stay-art.png", result.getEventArt());
         verify(eventsRepo).save(oldEvent);
     }
 }

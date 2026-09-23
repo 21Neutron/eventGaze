@@ -31,6 +31,9 @@ jwt:
   expiration:
     ms: 86400000
 
+storage:
+  base-url: ${STORAGE_BASE_URL:https://eventgazeeventimages.s3.amazonaws.com/}
+
 # CORS default allowed origins
 cors:
   allowed-origins: "*"

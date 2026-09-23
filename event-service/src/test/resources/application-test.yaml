@@ -23,6 +23,9 @@ AWS:
   S3:
     BUCKET_NAME: test-eventgaze-bucket
 
+storage:
+  base-url: ${STORAGE_BASE_URL:https://eventgazeeventimages.s3.amazonaws.com/}
+
 JWT:
   SECRET:
     KEY: testjwtsecretkeywithsufficientlengthforvalidation1234567890

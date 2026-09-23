@@ -6,6 +6,7 @@ import com.group9.eventgaze.entity.dto.EventRequestDTO;
 import com.group9.eventgaze.repository.CollegesRepo;
 import com.group9.eventgaze.repository.EventsRepo;
 import com.group9.eventgaze.repository.PublishersRepo;
+import com.group9.eventgaze.utils.StorageUrlResolver;
 import jakarta.persistence.EntityNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -100,13 +101,23 @@ public class EventsService {
 
         Events savedEvent = eventsRepo.save(event);
 
+        String bucket = s3Service != null ? s3Service.getBucketName() : null;
+
         if (eventRequestDTO.getEventArt() != null && !eventRequestDTO.getEventArt().isEmpty()) {
             String fileUrl = s3Service.uploadFile("events", eventRequestDTO.getEventArt());
-            savedEvent.setEventArt(fileUrl);
+            String relativeKey = StorageUrlResolver.toRelativeKey(fileUrl, bucket);
+            savedEvent.setEventArt(relativeKey != null ? relativeKey : fileUrl);
             eventsRepo.save(savedEvent);
-        } else if (eventRequestDTO.getEventArtUrl() != null && !eventRequestDTO.getEventArtUrl().isBlank()) {
-            savedEvent.setEventArt(eventRequestDTO.getEventArtUrl().trim());
-            eventsRepo.save(savedEvent);
+        } else {
+            String artInput = eventRequestDTO.getEventArtKey();
+            if (artInput == null || artInput.isBlank()) {
+                artInput = eventRequestDTO.getEventArtUrl();
+            }
+            if (artInput != null && !artInput.isBlank()) {
+                String relativeKey = StorageUrlResolver.toRelativeKey(artInput, bucket);
+                savedEvent.setEventArt(relativeKey != null ? relativeKey : artInput.trim());
+                eventsRepo.save(savedEvent);
+            }
         }
     }
 
@@ -171,11 +182,20 @@ public class EventsService {
                 oldEvent.setEventCategory(newEvent.getEventCategory());
             }
             if (newEvent.getEventArt() != null) {
-                if (!newEvent.getEventArt().equals(oldEvent.getEventArt())) {
-                    if (oldEvent.getEventArt() != null && !oldEvent.getEventArt().isBlank()) {
-                        deleteArtworkIfPresent(oldEvent.getEventArt());
+                String bucket = s3Service != null ? s3Service.getBucketName() : null;
+                String newArtKey = StorageUrlResolver.toRelativeKey(newEvent.getEventArt(), bucket);
+                if (newArtKey == null && !newEvent.getEventArt().isBlank()) {
+                    newArtKey = newEvent.getEventArt().trim();
+                }
+                String oldArtKey = oldEvent.getEventArt();
+                boolean isDifferent = (newArtKey == null && oldArtKey != null)
+                        || (newArtKey != null && !newArtKey.equals(oldArtKey));
+
+                if (isDifferent) {
+                    if (oldArtKey != null && !oldArtKey.isBlank()) {
+                        deleteArtworkIfPresent(oldArtKey);
                     }
-                    oldEvent.setEventArt(newEvent.getEventArt().isBlank() ? null : newEvent.getEventArt());
+                    oldEvent.setEventArt(newArtKey);
                 }
             }
 
@@ -206,23 +226,25 @@ public class EventsService {
 
     /**
      * Deletes the event artwork from S3 if present and not a default placeholder.
+     * Accepts relative keys directly or full URLs, extracting the relative S3 key.
      * Gracefully ignores any deletion errors to prevent blocking DB operations.
      *
-     * @param artworkUrl The artwork URL to delete
+     * @param artworkKeyOrUrl The artwork key or URL to delete
      */
-    private void deleteArtworkIfPresent(String artworkUrl) {
-        if (artworkUrl == null || artworkUrl.isBlank()) {
+    public void deleteArtworkIfPresent(String artworkKeyOrUrl) {
+        if (artworkKeyOrUrl == null || artworkKeyOrUrl.isBlank()) {
             return;
         }
         if (s3Service == null) {
             return;
         }
-        if (isDefaultPlaceholder(artworkUrl)) {
-            log.info("Skipping S3 deletion for default placeholder artwork: {}", artworkUrl);
+        if (isDefaultPlaceholder(artworkKeyOrUrl)) {
+            log.info("Skipping S3 deletion for default placeholder artwork: {}", artworkKeyOrUrl);
             return;
         }
         try {
-            String key = extractKeyFromUrl(artworkUrl);
+            String bucket = s3Service.getBucketName();
+            String key = StorageUrlResolver.toRelativeKey(artworkKeyOrUrl, bucket);
             if (key != null && !key.isBlank()) {
                 if (isDefaultPlaceholder(key)) {
                     log.info("Skipping S3 deletion for placeholder key: {}", key);
@@ -231,7 +253,7 @@ public class EventsService {
                 s3Service.deleteFile(key);
             }
         } catch (Exception e) {
-            log.error("Failed to delete S3 artwork for URL '{}': {}", artworkUrl, e.getMessage(), e);
+            log.error("Failed to delete S3 artwork for key/URL '{}': {}", artworkKeyOrUrl, e.getMessage(), e);
         }
     }
 

@@ -1,5 +1,6 @@
 package com.group9.eventgaze.service;
 
+import com.group9.eventgaze.utils.StorageUrlResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -172,47 +173,7 @@ public class S3Service {
      * @return Extracted S3 key, or null if invalid/empty
      */
     public static String extractKeyFromUrl(String url, String bucketName) {
-        if (url == null || url.isBlank()) {
-            return null;
-        }
-
-        String trimmed = url.trim();
-
-        // If not a full URL (no http/https scheme), treat directly as key
-        if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
-            return cleanKey(trimmed);
-        }
-
-        try {
-            URI uri = URI.create(trimmed);
-            String path = uri.getPath();
-            if (path == null || path.isBlank()) {
-                return null;
-            }
-
-            // Remove leading slashes
-            while (path.startsWith("/")) {
-                path = path.substring(1);
-            }
-
-            String host = uri.getHost() != null ? uri.getHost().toLowerCase() : "";
-
-            // If path-style URL or prefixed with bucket name
-            if (bucketName != null && !bucketName.isBlank() && path.startsWith(bucketName + "/")) {
-                path = path.substring(bucketName.length() + 1);
-            } else if (host.startsWith("s3.") || host.startsWith("s3-") || host.equals("s3.amazonaws.com")) {
-                // First path segment in path-style URLs is the bucket name
-                int firstSlash = path.indexOf('/');
-                if (firstSlash != -1 && firstSlash < path.length() - 1) {
-                    path = path.substring(firstSlash + 1);
-                }
-            }
-
-            return cleanKey(path);
-        } catch (Exception e) {
-            log.warn("Failed to parse S3 key using URI for '{}', falling back to string extraction: {}", url, e.getMessage());
-            return extractKeyFallback(trimmed, bucketName);
-        }
+        return StorageUrlResolver.toRelativeKey(url, bucketName);
     }
 
     private static String extractKeyFallback(String url, String bucketName) {
@@ -261,24 +222,7 @@ public class S3Service {
     }
 
     public static boolean isPlaceholder(String urlOrKey) {
-        if (urlOrKey == null || urlOrKey.isBlank()) {
-            return false;
-        }
-        String lower = urlOrKey.trim().toLowerCase();
-
-        if (lower.contains("placeholder") || lower.contains("dummyimage") || lower.contains("picsum.photos")) {
-            return true;
-        }
-
-        if (lower.contains("default")) {
-            return true;
-        }
-
-        if (lower.startsWith("/static/") || lower.startsWith("/assets/") || lower.startsWith("/images/")) {
-            return true;
-        }
-
-        return false;
+        return StorageUrlResolver.isPlaceholder(urlOrKey);
     }
 
     /**

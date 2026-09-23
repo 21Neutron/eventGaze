@@ -23,6 +23,9 @@ AWS:
   S3:
     BUCKET_NAME: ${AWS_S3_BUCKET_NAME:eventgazeeventimages}
 
+storage:
+  base-url: ${STORAGE_BASE_URL:https://eventgazeeventimages.s3.amazonaws.com/}
+
 # Default JWT settings
 JWT:
   SECRET:

@@ -143,6 +143,7 @@ class BookmarkServiceTest {
     @Test
     void testGetStudentBookmarks() {
         when(studentsRepo.findByUsers_UserId(10L)).thenReturn(Optional.of(mockStudent));
+        mockEvent.setEventArt("events/hackathon-poster.jpg");
         StudentBookmarks bookmark = new StudentBookmarks();
         bookmark.setBookMarkId(1L);
         bookmark.setStudentEntity(mockStudent);
@@ -156,6 +157,7 @@ class BookmarkServiceTest {
         assertEquals(1, results.size());
         assertEquals(200L, results.get(0).getEventId());
         assertEquals("Hackathon 2026", results.get(0).getEventName());
+        assertEquals("https://eventgazeeventimages.s3.amazonaws.com/events/hackathon-poster.jpg", results.get(0).getEventArt());
     }
 
     @Test

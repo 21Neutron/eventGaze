@@ -24,6 +24,7 @@ public class EventRequestDTO {
     @JsonIgnore
     private MultipartFile eventArt;
 
+    private String eventArtKey;
     private String eventArtUrl;
 
     @JsonProperty("eventArt")
