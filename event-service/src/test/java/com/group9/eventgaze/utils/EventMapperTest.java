@@ -126,4 +126,20 @@ class EventMapperTest {
         assertEquals("https://picsum.photos/200", dtos.get(1).getEventArt());
         assertNull(dtos.get(2).getEventArt());
     }
+
+    @Test
+    @DisplayName("Should resolve eventArtThumb relative key and dynamic baseUrl")
+    void testEventArtThumbResolution() {
+        Events event = createSampleEvent("events/poster.jpg");
+        event.setEventArtThumb("events/poster-thumb.jpg");
+
+        EventResponseDTO staticDto = EventMapper.toEventResponseDTO(event);
+        assertNotNull(staticDto);
+        assertEquals("https://eventgazeeventimages.s3.amazonaws.com/events/poster-thumb.jpg", staticDto.getEventArtThumb());
+
+        EventMapper cdnMapper = new EventMapper(storageUrlResolver, CDN_BASE_URL);
+        EventResponseDTO dynamicDto = cdnMapper.toDTO(event);
+        assertNotNull(dynamicDto);
+        assertEquals("https://cdn.eventgaze.com/events/poster-thumb.jpg", dynamicDto.getEventArtThumb());
+    }
 }

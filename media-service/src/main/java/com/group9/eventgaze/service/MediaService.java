@@ -44,56 +44,84 @@ public class MediaService {
     }
 
     /**
-     * Optimizes the uploaded image and streams the compressed bytes directly to AWS S3.
-     * Generates a collision-proof UUID key: <folder>/<uuid>.jpg.
+     * Optimizes the uploaded image and streams both full-resolution and thumbnail compressed bytes to AWS S3.
+     * Generates collision-proof UUID keys: <folder>/<uuid>.jpg and <folder>/<uuid>-thumb.jpg.
      *
      * @param file The multipart image file
      * @param folder Directory folder prefix (e.g. "events")
-     * @return UploadResponseDTO containing fileUrl, key, fileSize, and contentType
+     * @return UploadResponseDTO containing fileUrl, key, fileSize, contentType, and thumbnail details
      * @throws IOException If image optimization or S3 streaming fails
      */
     public UploadResponseDTO uploadMedia(MultipartFile file, String folder) throws IOException {
-        String key = generateKey(folder);
+        String mainKey = generateKey(folder);
+        String thumbKey = toThumbnailKey(mainKey);
 
-        ImageOptimizerService.OptimizedImage optimized = imageOptimizerService.optimizeImage(file);
+        ImageOptimizerService.MultiVariantImage multiVariant = imageOptimizerService.optimizeImageWithThumbnail(file);
+        ImageOptimizerService.OptimizedImage fullImage = multiVariant.fullImage();
+        ImageOptimizerService.OptimizedImage thumbnail = multiVariant.thumbnail();
 
         try {
-            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+            // Upload full image
+            PutObjectRequest putFullRequest = PutObjectRequest.builder()
                     .bucket(bucketName)
-                    .key(key)
-                    .contentType(optimized.contentType())
-                    .contentLength(optimized.size())
+                    .key(mainKey)
+                    .contentType(fullImage.contentType())
+                    .contentLength(fullImage.size())
                     .build();
 
-            log.info("Streaming optimized image to S3: bucket='{}', key='{}', size={} bytes",
-                    bucketName, key, optimized.size());
+            log.info("Streaming full optimized image to S3: bucket='{}', key='{}', size={} bytes",
+                    bucketName, mainKey, fullImage.size());
+            s3Client.putObject(putFullRequest, RequestBody.fromBytes(fullImage.bytes()));
+            String fileUrl = s3Client.utilities().getUrl(b -> b.bucket(bucketName).key(mainKey)).toString();
 
-            s3Client.putObject(putObjectRequest, RequestBody.fromBytes(optimized.bytes()));
+            // Upload thumbnail
+            PutObjectRequest putThumbRequest = PutObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(thumbKey)
+                    .contentType(thumbnail.contentType())
+                    .contentLength(thumbnail.size())
+                    .build();
 
-            String fileUrl = s3Client.utilities().getUrl(b -> b.bucket(bucketName).key(key)).toString();
-            log.info("Media successfully uploaded to S3: {}", fileUrl);
+            log.info("Streaming thumbnail image to S3: bucket='{}', key='{}', size={} bytes",
+                    bucketName, thumbKey, thumbnail.size());
+            s3Client.putObject(putThumbRequest, RequestBody.fromBytes(thumbnail.bytes()));
+            String thumbnailUrl = s3Client.utilities().getUrl(b -> b.bucket(bucketName).key(thumbKey)).toString();
+
+            log.info("Media successfully uploaded to S3: full='{}', thumb='{}'", fileUrl, thumbnailUrl);
 
             return UploadResponseDTO.builder()
                     .fileUrl(fileUrl)
-                    .key(key)
-                    .fileSize(optimized.size())
-                    .contentType(optimized.contentType())
+                    .key(mainKey)
+                    .fileSize(fullImage.size())
+                    .contentType(fullImage.contentType())
+                    .width(fullImage.width())
+                    .height(fullImage.height())
+                    .thumbnailKey(thumbKey)
+                    .thumbnailUrl(thumbnailUrl)
+                    .thumbWidth(thumbnail.width())
+                    .thumbHeight(thumbnail.height())
+                    .thumbFileSize(thumbnail.size())
                     .build();
 
         } catch (S3Exception e) {
-            log.error("AWS S3 service error while uploading key '{}' to bucket '{}': {}",
-                    key, bucketName, e.awsErrorDetails() != null ? e.awsErrorDetails().errorMessage() : e.getMessage(), e);
+            log.error("AWS S3 service error while uploading to bucket '{}': {}",
+                    bucketName, e.awsErrorDetails() != null ? e.awsErrorDetails().errorMessage() : e.getMessage(), e);
             throw new IOException("Failed to upload media to S3: " +
                     (e.awsErrorDetails() != null ? e.awsErrorDetails().errorMessage() : e.getMessage()), e);
         } catch (SdkException e) {
-            log.error("AWS SDK error while uploading key '{}' to bucket '{}': {}",
-                    key, bucketName, e.getMessage(), e);
+            log.error("AWS SDK error while uploading to bucket '{}': {}",
+                    bucketName, e.getMessage(), e);
             throw new IOException("Failed to communicate with AWS S3: " + e.getMessage(), e);
         }
     }
 
+    public UploadResponseDTO uploadMedia(String folder, MultipartFile file) throws IOException {
+        return uploadMedia(file, folder);
+    }
+
     /**
-     * Deletes media asset from S3 by key or URL.
+     * Deletes media asset from S3 by key or URL. If deleting a main image or thumbnail,
+     * also cleans up the associated variant from S3.
      *
      * @param key S3 object key (optional if url is provided)
      * @param url S3 object URL (optional if key is provided)
@@ -119,17 +147,28 @@ public class MediaService {
             return;
         }
 
+        // Delete primary target key
+        deleteSingleKey(targetKey);
+
+        // Also clean up associated companion variant (main <-> thumbnail)
+        String companionKey = targetKey.contains("-thumb.") ? toMainKey(targetKey) : toThumbnailKey(targetKey);
+        if (companionKey != null && !companionKey.equals(targetKey) && !isDefaultPlaceholder(companionKey)) {
+            deleteSingleKey(companionKey);
+        }
+    }
+
+    private void deleteSingleKey(String s3Key) {
         try {
             DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
                     .bucket(bucketName)
-                    .key(targetKey)
+                    .key(s3Key)
                     .build();
 
             s3Client.deleteObject(deleteRequest);
-            log.info("Successfully deleted media from S3: bucket='{}', key='{}'", bucketName, targetKey);
+            log.info("Successfully deleted media from S3: bucket='{}', key='{}'", bucketName, s3Key);
         } catch (Exception e) {
             log.error("Failed to delete media from S3: bucket='{}', key='{}': {}",
-                    bucketName, targetKey, e.getMessage(), e);
+                    bucketName, s3Key, e.getMessage(), e);
         }
     }
 
@@ -144,6 +183,44 @@ public class MediaService {
             cleanFolder = "events";
         }
         return cleanFolder + "/" + UUID.randomUUID() + ".jpg";
+    }
+
+    /**
+     * Converts a main object key into its associated thumbnail key.
+     * e.g., "events/uuid.jpg" -> "events/uuid-thumb.jpg".
+     */
+    public static String toThumbnailKey(String mainKey) {
+        if (mainKey == null || mainKey.isBlank()) {
+            return null;
+        }
+        if (mainKey.endsWith("-thumb.jpg")) {
+            return mainKey;
+        }
+        if (mainKey.endsWith(".jpg")) {
+            return mainKey.substring(0, mainKey.length() - 4) + "-thumb.jpg";
+        }
+        int dotIndex = mainKey.lastIndexOf('.');
+        if (dotIndex != -1) {
+            return mainKey.substring(0, dotIndex) + "-thumb" + mainKey.substring(dotIndex);
+        }
+        return mainKey + "-thumb.jpg";
+    }
+
+    /**
+     * Converts a thumbnail key back to the main object key.
+     * e.g., "events/uuid-thumb.jpg" -> "events/uuid.jpg".
+     */
+    public static String toMainKey(String thumbKey) {
+        if (thumbKey == null || thumbKey.isBlank()) {
+            return null;
+        }
+        if (thumbKey.contains("-thumb.")) {
+            return thumbKey.replace("-thumb.", ".");
+        }
+        if (thumbKey.endsWith("-thumb")) {
+            return thumbKey.substring(0, thumbKey.length() - "-thumb".length()) + ".jpg";
+        }
+        return thumbKey;
     }
 
     /**

@@ -44,6 +44,7 @@ class DtoTest {
                 .eventDate("2026-12-01")
                 .eventTags("code,ai")
                 .eventArt("art.png")
+                .eventArtThumb("art-thumb.png")
                 .college(college)
                 .eventVenue("Hall A")
                 .eventCategory(category)
@@ -52,9 +53,40 @@ class DtoTest {
 
         assertEquals(10L, event.getEventId());
         assertEquals("Hackathon", event.getEventName());
+        assertEquals("art.png", event.getEventArt());
+        assertEquals("art-thumb.png", event.getEventArtThumb());
         assertEquals(college, event.getCollege());
         assertEquals(publisher, event.getPublishers());
         assertEquals(category, event.getEventCategory());
+    }
+
+    @Test
+    void testUploadResponseDTO() {
+        UploadResponseDTO upload = UploadResponseDTO.builder()
+                .fileUrl("https://s3.amazonaws.com/events/uuid.jpg")
+                .key("events/uuid.jpg")
+                .fileSize(1024L)
+                .contentType("image/jpeg")
+                .thumbnailKey("events/uuid-thumb.jpg")
+                .thumbnailUrl("https://s3.amazonaws.com/events/uuid-thumb.jpg")
+                .width(1280)
+                .height(720)
+                .thumbWidth(400)
+                .thumbHeight(225)
+                .thumbFileSize(512L)
+                .build();
+
+        assertEquals("https://s3.amazonaws.com/events/uuid.jpg", upload.getFileUrl());
+        assertEquals("events/uuid.jpg", upload.getKey());
+        assertEquals(1024L, upload.getFileSize());
+        assertEquals("image/jpeg", upload.getContentType());
+        assertEquals("events/uuid-thumb.jpg", upload.getThumbnailKey());
+        assertEquals("https://s3.amazonaws.com/events/uuid-thumb.jpg", upload.getThumbnailUrl());
+        assertEquals(1280, upload.getWidth());
+        assertEquals(720, upload.getHeight());
+        assertEquals(400, upload.getThumbWidth());
+        assertEquals(225, upload.getThumbHeight());
+        assertEquals(512L, upload.getThumbFileSize());
     }
 
     @Test

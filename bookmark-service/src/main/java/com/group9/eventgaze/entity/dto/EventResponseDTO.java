@@ -11,6 +11,7 @@ public class EventResponseDTO {
     private String eventDate;
     private String eventTags;
     private String eventArt;
+    private String eventArtThumb;
     private CollegeDTO college;
     private String eventVenue;
     private EventCategory eventCategory;

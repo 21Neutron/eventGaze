@@ -23,6 +23,9 @@ public class ImageOptimizerService {
     public static final int MAX_WIDTH = 1280;
     public static final int MAX_HEIGHT = 1280;
     public static final double COMPRESSION_QUALITY = 0.82; // 82% quality
+    public static final int THUMB_MAX_WIDTH = 400;
+    public static final int THUMB_MAX_HEIGHT = 400;
+    public static final double THUMB_COMPRESSION_QUALITY = 0.80; // 80% quality
     public static final String OUTPUT_FORMAT = "jpg";
     public static final String OUTPUT_CONTENT_TYPE = "image/jpeg";
 
@@ -48,6 +51,11 @@ public class ImageOptimizerService {
             int height,
             long size,
             String contentType
+    ) {}
+
+    public record MultiVariantImage(
+            OptimizedImage fullImage,
+            OptimizedImage thumbnail
     ) {}
 
     /**
@@ -106,6 +114,100 @@ public class ImageOptimizerService {
         }
 
         return optimizeBufferedImage(inputImage);
+    }
+
+    /**
+     * Optimizes an image and generates a thumbnail:
+     * Full image: resizes to fit within 1280x1280 bounds maintaining aspect ratio, 82% quality.
+     * Thumbnail: resizes to fit within 400x400 bounds maintaining aspect ratio, 80% quality.
+     *
+     * @param file The multipart image file
+     * @return MultiVariantImage containing both fullImage and thumbnail
+     * @throws IOException If image reading or processing fails
+     */
+    public MultiVariantImage optimizeImageWithThumbnail(MultipartFile file) throws IOException {
+        validateImage(file);
+
+        BufferedImage inputImage;
+        try {
+            inputImage = ImageIO.read(file.getInputStream());
+        } catch (Exception e) {
+            log.error("Failed to read image stream: {}", e.getMessage(), e);
+            throw new IllegalArgumentException("Unable to decode image file. Please upload a valid image.", e);
+        }
+
+        if (inputImage == null) {
+            throw new IllegalArgumentException("Unable to decode image content: file is not a supported image format.");
+        }
+
+        OptimizedImage fullImage = optimizeBufferedImage(inputImage);
+        OptimizedImage thumbnail = generateThumbnail(inputImage);
+
+        return new MultiVariantImage(fullImage, thumbnail);
+    }
+
+    /**
+     * Generates a thumbnail for a decoded BufferedImage:
+     * Resizes to max bounds: 400x400 (aspect ratio preserved), quality: 80% compression.
+     *
+     * @param inputImage The decoded input BufferedImage
+     * @return OptimizedImage containing thumbnail bytes and dimensions
+     * @throws IOException If thumbnail processing fails
+     */
+    public OptimizedImage generateThumbnail(BufferedImage inputImage) throws IOException {
+        if (inputImage == null) {
+            throw new IllegalArgumentException("Input image cannot be null.");
+        }
+
+        int originalWidth = inputImage.getWidth();
+        int originalHeight = inputImage.getHeight();
+
+        BufferedImage imageToProcess = inputImage;
+        if (inputImage.getColorModel().hasAlpha()) {
+            BufferedImage rgbImage = new BufferedImage(
+                    originalWidth,
+                    originalHeight,
+                    BufferedImage.TYPE_INT_RGB);
+            Graphics2D g = rgbImage.createGraphics();
+            g.setColor(Color.WHITE);
+            g.fillRect(0, 0, originalWidth, originalHeight);
+            g.drawImage(inputImage, 0, 0, null);
+            g.dispose();
+            imageToProcess = rgbImage;
+        }
+
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        var thumbnailBuilder = Thumbnails.of(imageToProcess);
+
+        if (originalWidth > THUMB_MAX_WIDTH || originalHeight > THUMB_MAX_HEIGHT) {
+            thumbnailBuilder.size(THUMB_MAX_WIDTH, THUMB_MAX_HEIGHT);
+        } else {
+            thumbnailBuilder.size(originalWidth, originalHeight);
+        }
+
+        thumbnailBuilder.outputFormat(OUTPUT_FORMAT)
+                .outputQuality(THUMB_COMPRESSION_QUALITY)
+                .toOutputStream(outputStream);
+
+        byte[] compressedBytes = outputStream.toByteArray();
+
+        double scale = 1.0;
+        if (originalWidth > THUMB_MAX_WIDTH || originalHeight > THUMB_MAX_HEIGHT) {
+            scale = Math.min((double) THUMB_MAX_WIDTH / originalWidth, (double) THUMB_MAX_HEIGHT / originalHeight);
+        }
+        int finalWidth = Math.max(1, (int) Math.round(originalWidth * scale));
+        int finalHeight = Math.max(1, (int) Math.round(originalHeight * scale));
+
+        log.info("Generated thumbnail: [{}x{}] -> [{}x{}], compressed size: {} bytes (format: JPEG, quality: 80%)",
+                originalWidth, originalHeight, finalWidth, finalHeight, compressedBytes.length);
+
+        return new OptimizedImage(
+                compressedBytes,
+                finalWidth,
+                finalHeight,
+                compressedBytes.length,
+                OUTPUT_CONTENT_TYPE
+        );
     }
 
     /**

@@ -452,4 +452,112 @@ class EventsServiceSecurityTest {
         assertEquals("events/stay-art.png", result.getEventArt());
         verify(eventsRepo).save(oldEvent);
     }
+
+    @Test
+    void testCreateEventWithExplicitThumbnailSavesRelativeThumbKey() throws IOException {
+        EventRequestDTO requestDTO = new EventRequestDTO();
+        requestDTO.setEventName("Thumbnail Event");
+        requestDTO.setEventDescription("Desc");
+        requestDTO.setEventDate("25-11-2026");
+        requestDTO.setEventCategoryId(1L);
+        requestDTO.setColleges(2L);
+        requestDTO.setEventArtKey("events/custom-main.jpg");
+        requestDTO.setEventArtThumbKey("events/custom-thumb.jpg");
+
+        EventCategory category = new EventCategory();
+        category.setCategoryId(1L);
+        when(eventCategoryService.findByIdOrThrow(1L)).thenReturn(category);
+
+        Users authenticatedUser = new Users();
+        authenticatedUser.setUserId(10L);
+        when(usersService.findByIdOrThrow(10L)).thenReturn(authenticatedUser);
+
+        Publishers publisher = new Publishers();
+        publisher.setPublisherId(5L);
+        publisher.setUsers(authenticatedUser);
+        when(publishersService.findByUser(authenticatedUser)).thenReturn(publisher);
+
+        Colleges college = new Colleges();
+        college.setCollegeId(2L);
+        when(collegesService.findById(2L)).thenReturn(college);
+
+        when(eventsRepo.save(any(Events.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        eventsService.createEvent(requestDTO);
+
+        verify(eventsRepo, times(2)).save(argThat(event ->
+                "events/custom-main.jpg".equals(event.getEventArt()) &&
+                "events/custom-thumb.jpg".equals(event.getEventArtThumb())
+        ));
+    }
+
+    @Test
+    void testCreateEventWithOnlyEventArtAutoComputesDefaultThumbnailKey() throws IOException {
+        EventRequestDTO requestDTO = new EventRequestDTO();
+        requestDTO.setEventName("Auto Thumb Event");
+        requestDTO.setEventDescription("Desc");
+        requestDTO.setEventDate("25-11-2026");
+        requestDTO.setEventCategoryId(1L);
+        requestDTO.setColleges(2L);
+        requestDTO.setEventArtUrl("https://bucket.s3.amazonaws.com/events/550e8400-e29b-41d4-a716-446655440000.jpg");
+
+        EventCategory category = new EventCategory();
+        category.setCategoryId(1L);
+        when(eventCategoryService.findByIdOrThrow(1L)).thenReturn(category);
+
+        Users authenticatedUser = new Users();
+        authenticatedUser.setUserId(10L);
+        when(usersService.findByIdOrThrow(10L)).thenReturn(authenticatedUser);
+
+        Publishers publisher = new Publishers();
+        publisher.setPublisherId(5L);
+        publisher.setUsers(authenticatedUser);
+        when(publishersService.findByUser(authenticatedUser)).thenReturn(publisher);
+
+        Colleges college = new Colleges();
+        college.setCollegeId(2L);
+        when(collegesService.findById(2L)).thenReturn(college);
+
+        when(eventsRepo.save(any(Events.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        eventsService.createEvent(requestDTO);
+
+        verify(eventsRepo, times(2)).save(argThat(event ->
+                "events/550e8400-e29b-41d4-a716-446655440000.jpg".equals(event.getEventArt()) &&
+                "events/550e8400-e29b-41d4-a716-446655440000-thumb.jpg".equals(event.getEventArtThumb())
+        ));
+    }
+
+    @Test
+    void testDeleteEventByIdDeletesBothMainAndThumbnailFromS3() {
+        Users ownerUser = new Users();
+        ownerUser.setUserId(10L);
+
+        Publishers publisher = new Publishers();
+        publisher.setUsers(ownerUser);
+
+        Events event = new Events();
+        event.setEventId(55L);
+        event.setPublishers(publisher);
+        event.setEventArt("events/banner-123.jpg");
+        event.setEventArtThumb("events/banner-123-thumb.jpg");
+
+        when(eventsRepo.findById(55L)).thenReturn(Optional.of(event));
+
+        eventsService.deleteEventById(55L);
+
+        verify(s3Service).deleteFile("events/banner-123.jpg");
+        verify(s3Service).deleteFile("events/banner-123-thumb.jpg");
+        verify(eventsRepo).delete(event);
+    }
+
+    @Test
+    void testComputeDefaultThumbnailKeyUtility() {
+        assertEquals("events/uuid-thumb.jpg", EventsService.computeDefaultThumbnailKey("events/uuid.jpg"));
+        assertEquals("events/uuid-thumb.jpg", EventsService.computeDefaultThumbnailKey("/events/uuid.jpg"));
+        assertEquals("events/uuid-thumb.jpg", EventsService.computeDefaultThumbnailKey("events/uuid-thumb.jpg"));
+        assertNull(EventsService.computeDefaultThumbnailKey(null));
+        assertNull(EventsService.computeDefaultThumbnailKey(""));
+        assertNull(EventsService.computeDefaultThumbnailKey("https://picsum.photos/400/300"));
+    }
 }

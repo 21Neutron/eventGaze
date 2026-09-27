@@ -27,10 +27,27 @@ public class EventRequestDTO {
     private String eventArtKey;
     private String eventArtUrl;
 
+    private String eventArtThumb;
+    private String eventArtThumbKey;
+    private String eventArtThumbUrl;
+
     @JsonProperty("eventArt")
     public void setEventArtFromJson(String eventArt) {
         if (eventArt != null && !eventArt.isBlank()) {
             this.eventArtUrl = eventArt.trim();
         }
+    }
+
+    public String resolveEventArtThumbInput() {
+        if (eventArtThumbKey != null && !eventArtThumbKey.isBlank()) {
+            return eventArtThumbKey.trim();
+        }
+        if (eventArtThumbUrl != null && !eventArtThumbUrl.isBlank()) {
+            return eventArtThumbUrl.trim();
+        }
+        if (eventArtThumb != null && !eventArtThumb.isBlank()) {
+            return eventArtThumb.trim();
+        }
+        return null;
     }
 }

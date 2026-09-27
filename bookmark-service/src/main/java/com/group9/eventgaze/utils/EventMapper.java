@@ -62,6 +62,7 @@ public class EventMapper {
 
         StorageUrlResolver resolver = (staticStorageUrlResolver != null) ? staticStorageUrlResolver : new StorageUrlResolver();
         dto.setEventArt(resolver.resolveUrl(event.getEventArt(), staticBaseUrl));
+        dto.setEventArtThumb(resolver.resolveUrl(event.getEventArtThumb(), staticBaseUrl));
 
         dto.setEventVenue(event.getEventVenue());
         dto.setCollege(toCollegeDTO(event.getCollege()));
@@ -77,6 +78,7 @@ public class EventMapper {
         EventResponseDTO dto = toEventResponseDTO(event);
         if (storageUrlResolver != null) {
             dto.setEventArt(storageUrlResolver.resolveUrl(event.getEventArt(), baseUrl));
+            dto.setEventArtThumb(storageUrlResolver.resolveUrl(event.getEventArtThumb(), baseUrl));
         }
         return dto;
     }

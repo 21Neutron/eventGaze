@@ -46,37 +46,57 @@ class MediaServiceTest {
     }
 
     @Test
-    @DisplayName("Should optimize image, stream bytes to S3 and return UploadResponseDTO")
+    @DisplayName("Should optimize image, stream full and thumbnail bytes to S3, and return UploadResponseDTO")
     void testUploadMedia_Success() throws IOException {
         MockMultipartFile file = new MockMultipartFile(
                 "file", "banner.png", "image/png", new byte[]{1, 2, 3, 4});
 
-        byte[] compressedBytes = new byte[]{10, 20, 30};
-        ImageOptimizerService.OptimizedImage optimized = new ImageOptimizerService.OptimizedImage(
-                compressedBytes, 1280, 720, compressedBytes.length, "image/jpeg");
+        byte[] fullBytes = new byte[]{10, 20, 30};
+        byte[] thumbBytes = new byte[]{5, 6};
+        ImageOptimizerService.OptimizedImage fullImage = new ImageOptimizerService.OptimizedImage(
+                fullBytes, 1280, 720, fullBytes.length, "image/jpeg");
+        ImageOptimizerService.OptimizedImage thumbnail = new ImageOptimizerService.OptimizedImage(
+                thumbBytes, 400, 225, thumbBytes.length, "image/jpeg");
 
-        when(imageOptimizerService.optimizeImage(file)).thenReturn(optimized);
+        when(imageOptimizerService.optimizeImageWithThumbnail(file))
+                .thenReturn(new ImageOptimizerService.MultiVariantImage(fullImage, thumbnail));
         when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
                 .thenReturn(PutObjectResponse.builder().build());
         when(s3Client.utilities()).thenReturn(s3Utilities);
         when(s3Utilities.getUrl(any(Consumer.class)))
-                .thenReturn(new URL("https://test-media-bucket.s3.amazonaws.com/events/mock-key.jpg"));
+                .thenReturn(new URL("https://test-media-bucket.s3.amazonaws.com/events/mock-key.jpg"))
+                .thenReturn(new URL("https://test-media-bucket.s3.amazonaws.com/events/mock-key-thumb.jpg"));
 
         UploadResponseDTO response = mediaService.uploadMedia(file, "events");
 
         assertNotNull(response);
         assertEquals("image/jpeg", response.getContentType());
-        assertEquals(compressedBytes.length, response.getFileSize());
+        assertEquals(fullBytes.length, response.getFileSize());
         assertEquals("https://test-media-bucket.s3.amazonaws.com/events/mock-key.jpg", response.getFileUrl());
         assertTrue(response.getKey().startsWith("events/"));
         assertTrue(response.getKey().endsWith(".jpg"));
+        assertFalse(response.getKey().contains("-thumb"));
+        assertEquals(1280, response.getWidth());
+        assertEquals(720, response.getHeight());
+
+        // Thumbnail asserts
+        assertNotNull(response.getThumbnailKey());
+        assertTrue(response.getThumbnailKey().startsWith("events/"));
+        assertTrue(response.getThumbnailKey().endsWith("-thumb.jpg"));
+        assertEquals("https://test-media-bucket.s3.amazonaws.com/events/mock-key-thumb.jpg", response.getThumbnailUrl());
+        assertEquals(400, response.getThumbWidth());
+        assertEquals(225, response.getThumbHeight());
+        assertEquals((long) thumbBytes.length, response.getThumbFileSize());
 
         ArgumentCaptor<PutObjectRequest> putRequestCaptor = ArgumentCaptor.forClass(PutObjectRequest.class);
-        verify(s3Client).putObject(putRequestCaptor.capture(), any(RequestBody.class));
-        PutObjectRequest capturedRequest = putRequestCaptor.getValue();
-        assertEquals(bucketName, capturedRequest.bucket());
-        assertEquals("image/jpeg", capturedRequest.contentType());
-        assertEquals((long) compressedBytes.length, capturedRequest.contentLength());
+        verify(s3Client, times(2)).putObject(putRequestCaptor.capture(), any(RequestBody.class));
+        var capturedRequests = putRequestCaptor.getAllValues();
+        assertEquals(2, capturedRequests.size());
+        assertEquals(bucketName, capturedRequests.get(0).bucket());
+        assertEquals(response.getKey(), capturedRequests.get(0).key());
+        assertEquals((long) fullBytes.length, capturedRequests.get(0).contentLength());
+        assertEquals(response.getThumbnailKey(), capturedRequests.get(1).key());
+        assertEquals((long) thumbBytes.length, capturedRequests.get(1).contentLength());
     }
 
     @Test
@@ -85,11 +105,15 @@ class MediaServiceTest {
         MockMultipartFile file = new MockMultipartFile(
                 "file", "image.jpg", "image/jpeg", new byte[]{5, 6, 7});
 
-        byte[] compressed = new byte[]{8, 9};
-        ImageOptimizerService.OptimizedImage optimized = new ImageOptimizerService.OptimizedImage(
-                compressed, 640, 480, compressed.length, "image/jpeg");
+        byte[] fullBytes = new byte[]{8, 9};
+        byte[] thumbBytes = new byte[]{1};
+        ImageOptimizerService.OptimizedImage full = new ImageOptimizerService.OptimizedImage(
+                fullBytes, 640, 480, fullBytes.length, "image/jpeg");
+        ImageOptimizerService.OptimizedImage thumb = new ImageOptimizerService.OptimizedImage(
+                thumbBytes, 400, 300, thumbBytes.length, "image/jpeg");
 
-        when(imageOptimizerService.optimizeImage(file)).thenReturn(optimized);
+        when(imageOptimizerService.optimizeImageWithThumbnail(file))
+                .thenReturn(new ImageOptimizerService.MultiVariantImage(full, thumb));
         when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
                 .thenReturn(PutObjectResponse.builder().build());
         when(s3Client.utilities()).thenReturn(s3Utilities);
@@ -101,6 +125,8 @@ class MediaServiceTest {
         assertNotNull(response);
         assertTrue(response.getKey().startsWith("events/"));
         assertTrue(response.getKey().endsWith(".jpg"));
+        assertTrue(response.getThumbnailKey().startsWith("events/"));
+        assertTrue(response.getThumbnailKey().endsWith("-thumb.jpg"));
     }
 
     @Test
@@ -109,22 +135,28 @@ class MediaServiceTest {
         MockMultipartFile file = new MockMultipartFile(
                 "file", "avatar.png", "image/png", new byte[]{1, 2});
 
-        byte[] compressed = new byte[]{3, 4};
-        ImageOptimizerService.OptimizedImage optimized = new ImageOptimizerService.OptimizedImage(
-                compressed, 200, 200, compressed.length, "image/jpeg");
+        byte[] fullBytes = new byte[]{3, 4};
+        byte[] thumbBytes = new byte[]{1};
+        ImageOptimizerService.OptimizedImage full = new ImageOptimizerService.OptimizedImage(
+                fullBytes, 200, 200, fullBytes.length, "image/jpeg");
+        ImageOptimizerService.OptimizedImage thumb = new ImageOptimizerService.OptimizedImage(
+                thumbBytes, 200, 200, thumbBytes.length, "image/jpeg");
 
-        when(imageOptimizerService.optimizeImage(file)).thenReturn(optimized);
+        when(imageOptimizerService.optimizeImageWithThumbnail(file))
+                .thenReturn(new ImageOptimizerService.MultiVariantImage(full, thumb));
         when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
                 .thenReturn(PutObjectResponse.builder().build());
         when(s3Client.utilities()).thenReturn(s3Utilities);
         when(s3Utilities.getUrl(any(Consumer.class)))
                 .thenReturn(new URL("https://test-media-bucket.s3.amazonaws.com/profiles/mock-key.jpg"));
 
-        UploadResponseDTO response = mediaService.uploadMedia(file, "profiles");
+        UploadResponseDTO response = mediaService.uploadMedia("profiles", file);
 
         assertNotNull(response);
         assertTrue(response.getKey().startsWith("profiles/"));
         assertTrue(response.getKey().endsWith(".jpg"));
+        assertTrue(response.getThumbnailKey().startsWith("profiles/"));
+        assertTrue(response.getThumbnailKey().endsWith("-thumb.jpg"));
     }
 
     @Test
@@ -133,10 +165,13 @@ class MediaServiceTest {
         MockMultipartFile file = new MockMultipartFile(
                 "file", "error.jpg", "image/jpeg", new byte[]{1});
 
-        ImageOptimizerService.OptimizedImage optimized = new ImageOptimizerService.OptimizedImage(
+        ImageOptimizerService.OptimizedImage full = new ImageOptimizerService.OptimizedImage(
+                new byte[]{1}, 100, 100, 1L, "image/jpeg");
+        ImageOptimizerService.OptimizedImage thumb = new ImageOptimizerService.OptimizedImage(
                 new byte[]{1}, 100, 100, 1L, "image/jpeg");
 
-        when(imageOptimizerService.optimizeImage(file)).thenReturn(optimized);
+        when(imageOptimizerService.optimizeImageWithThumbnail(file))
+                .thenReturn(new ImageOptimizerService.MultiVariantImage(full, thumb));
         when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
                 .thenThrow(S3Exception.builder().message("Access Denied to S3").build());
 
@@ -147,26 +182,49 @@ class MediaServiceTest {
     }
 
     @Test
-    @DisplayName("Should delete object from S3 when key is provided")
+    @DisplayName("Should delete both main and thumbnail objects from S3 when main key is provided")
     void testDeleteMedia_ByKey_Success() {
         mediaService.deleteMedia("events/target-key.jpg", null);
 
         ArgumentCaptor<DeleteObjectRequest> captor = ArgumentCaptor.forClass(DeleteObjectRequest.class);
-        verify(s3Client).deleteObject(captor.capture());
-        DeleteObjectRequest req = captor.getValue();
-        assertEquals(bucketName, req.bucket());
-        assertEquals("events/target-key.jpg", req.key());
+        verify(s3Client, times(2)).deleteObject(captor.capture());
+        var keys = captor.getAllValues().stream().map(DeleteObjectRequest::key).toList();
+        assertTrue(keys.contains("events/target-key.jpg"));
+        assertTrue(keys.contains("events/target-key-thumb.jpg"));
     }
 
     @Test
-    @DisplayName("Should extract key and delete object from S3 when URL is provided")
+    @DisplayName("Should delete both thumbnail and main objects from S3 when thumbnail key is provided")
+    void testDeleteMedia_ByThumbnailKey_DeletesBoth() {
+        mediaService.deleteMedia("events/target-key-thumb.jpg", null);
+
+        ArgumentCaptor<DeleteObjectRequest> captor = ArgumentCaptor.forClass(DeleteObjectRequest.class);
+        verify(s3Client, times(2)).deleteObject(captor.capture());
+        var keys = captor.getAllValues().stream().map(DeleteObjectRequest::key).toList();
+        assertTrue(keys.contains("events/target-key-thumb.jpg"));
+        assertTrue(keys.contains("events/target-key.jpg"));
+    }
+
+    @Test
+    @DisplayName("Should extract key and delete both main and thumbnail objects from S3 when URL is provided")
     void testDeleteMedia_ByUrl_Success() {
         String url = "https://test-media-bucket.s3.us-east-1.amazonaws.com/events/url-key.jpg";
         mediaService.deleteMedia(null, url);
 
         ArgumentCaptor<DeleteObjectRequest> captor = ArgumentCaptor.forClass(DeleteObjectRequest.class);
-        verify(s3Client).deleteObject(captor.capture());
-        assertEquals("events/url-key.jpg", captor.getValue().key());
+        verify(s3Client, times(2)).deleteObject(captor.capture());
+        var keys = captor.getAllValues().stream().map(DeleteObjectRequest::key).toList();
+        assertTrue(keys.contains("events/url-key.jpg"));
+        assertTrue(keys.contains("events/url-key-thumb.jpg"));
+    }
+
+    @Test
+    @DisplayName("Should verify toThumbnailKey and toMainKey conversions")
+    void testKeyConversionUtilities() {
+        assertEquals("events/uuid-thumb.jpg", MediaService.toThumbnailKey("events/uuid.jpg"));
+        assertEquals("events/uuid-thumb.jpg", MediaService.toThumbnailKey("events/uuid-thumb.jpg"));
+        assertEquals("events/uuid.jpg", MediaService.toMainKey("events/uuid-thumb.jpg"));
+        assertEquals("events/uuid.jpg", MediaService.toMainKey("events/uuid.jpg"));
     }
 
     @Test

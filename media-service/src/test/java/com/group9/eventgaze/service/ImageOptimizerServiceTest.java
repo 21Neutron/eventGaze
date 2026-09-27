@@ -183,4 +183,116 @@ class ImageOptimizerServiceTest {
                 optimizerService.optimizeImage(corruptFile));
         assertTrue(ex.getMessage().contains("Unable to decode image"));
     }
+
+    @Test
+    @DisplayName("Should generate thumbnail fitting within 400x400 bounds preserving aspect ratio")
+    void testGenerateThumbnail_ScalesWithinBounds() throws IOException {
+        // Wide image 1600x900 (16:9) -> should scale to 400x225
+        BufferedImage inputImage = new BufferedImage(1600, 900, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = inputImage.createGraphics();
+        g.setColor(Color.BLUE);
+        g.fillRect(0, 0, 1600, 900);
+        g.dispose();
+
+        ImageOptimizerService.OptimizedImage thumb = optimizerService.generateThumbnail(inputImage);
+
+        assertNotNull(thumb);
+        assertEquals(400, thumb.width());
+        assertEquals(225, thumb.height());
+        assertEquals("image/jpeg", thumb.contentType());
+        assertTrue(thumb.size() > 0);
+
+        BufferedImage decoded = ImageIO.read(new ByteArrayInputStream(thumb.bytes()));
+        assertNotNull(decoded);
+        assertEquals(400, decoded.getWidth());
+        assertEquals(225, decoded.getHeight());
+    }
+
+    @Test
+    @DisplayName("Should generate thumbnail from tall image fitting within 400x400 bounds")
+    void testGenerateThumbnail_TallImage_ScalesWithinBounds() throws IOException {
+        // Tall image 800x1600 (1:2) -> should scale to 200x400
+        BufferedImage inputImage = new BufferedImage(800, 1600, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = inputImage.createGraphics();
+        g.setColor(Color.RED);
+        g.fillRect(0, 0, 800, 1600);
+        g.dispose();
+
+        ImageOptimizerService.OptimizedImage thumb = optimizerService.generateThumbnail(inputImage);
+
+        assertNotNull(thumb);
+        assertEquals(200, thumb.width());
+        assertEquals(400, thumb.height());
+        assertEquals("image/jpeg", thumb.contentType());
+
+        BufferedImage decoded = ImageIO.read(new ByteArrayInputStream(thumb.bytes()));
+        assertNotNull(decoded);
+        assertEquals(200, decoded.getWidth());
+        assertEquals(400, decoded.getHeight());
+    }
+
+    @Test
+    @DisplayName("Should generate thumbnail maintaining small dimensions if already <= 400x400")
+    void testGenerateThumbnail_SmallImage_MaintainsDimensions() throws IOException {
+        BufferedImage inputImage = new BufferedImage(300, 200, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = inputImage.createGraphics();
+        g.setColor(Color.GREEN);
+        g.fillRect(0, 0, 300, 200);
+        g.dispose();
+
+        ImageOptimizerService.OptimizedImage thumb = optimizerService.generateThumbnail(inputImage);
+
+        assertNotNull(thumb);
+        assertEquals(300, thumb.width());
+        assertEquals(200, thumb.height());
+    }
+
+    @Test
+    @DisplayName("Should flatten transparent PNG when generating thumbnail")
+    void testGenerateThumbnail_TransparentPng_FlattensAlpha() throws IOException {
+        BufferedImage inputImage = new BufferedImage(600, 600, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = inputImage.createGraphics();
+        g.setColor(new Color(255, 0, 0, 128));
+        g.fillRect(0, 0, 600, 600);
+        g.dispose();
+
+        ImageOptimizerService.OptimizedImage thumb = optimizerService.generateThumbnail(inputImage);
+
+        assertNotNull(thumb);
+        assertEquals(400, thumb.width());
+        assertEquals(400, thumb.height());
+        assertEquals("image/jpeg", thumb.contentType());
+    }
+
+    @Test
+    @DisplayName("Should throw IllegalArgumentException when input image is null for generateThumbnail")
+    void testGenerateThumbnail_NullInput_ThrowsException() {
+        assertThrows(IllegalArgumentException.class, () ->
+                optimizerService.generateThumbnail(null));
+    }
+
+    @Test
+    @DisplayName("Should optimize image and produce both full image and thumbnail in optimizeImageWithThumbnail")
+    void testOptimizeImageWithThumbnail_ReturnsBothVariants() throws IOException {
+        byte[] imageBytes = createTestImageBytes(2000, 1000, "png", false);
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "multi.png", "image/png", imageBytes);
+
+        ImageOptimizerService.MultiVariantImage result = optimizerService.optimizeImageWithThumbnail(file);
+
+        assertNotNull(result);
+        assertNotNull(result.fullImage());
+        assertNotNull(result.thumbnail());
+
+        // Full image fits in 1280x1280 (2000x1000 -> 1280x640)
+        assertEquals(1280, result.fullImage().width());
+        assertEquals(640, result.fullImage().height());
+        assertEquals("image/jpeg", result.fullImage().contentType());
+
+        // Thumbnail fits in 400x400 (2000x1000 -> 400x200)
+        assertEquals(400, result.thumbnail().width());
+        assertEquals(200, result.thumbnail().height());
+        assertEquals("image/jpeg", result.thumbnail().contentType());
+        assertTrue(result.thumbnail().size() < result.fullImage().size());
+    }
 }

@@ -33,6 +33,9 @@ public class Events {
     @Column(name = "event_art")
     private String eventArt;
 
+    @Column(name = "event_art_thumb")
+    private String eventArtThumb;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "publisher_id", referencedColumnName = "publisher_id")
     private Publishers publishers;

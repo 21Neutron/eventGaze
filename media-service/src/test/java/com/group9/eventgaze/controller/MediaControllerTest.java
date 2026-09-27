@@ -12,6 +12,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -54,6 +55,13 @@ class MediaControllerTest {
                 .key("events/uuid.jpg")
                 .fileSize(184520L)
                 .contentType("image/jpeg")
+                .thumbnailKey("events/uuid-thumb.jpg")
+                .thumbnailUrl("https://bucket.s3.amazonaws.com/events/uuid-thumb.jpg")
+                .width(1280)
+                .height(720)
+                .thumbWidth(400)
+                .thumbHeight(225)
+                .thumbFileSize(45000L)
                 .build();
 
         when(mediaService.uploadMedia(any(), eq("events"))).thenReturn(responseDTO);
@@ -65,9 +73,16 @@ class MediaControllerTest {
                 .andExpect(jsonPath("$.fileUrl").value("https://bucket.s3.amazonaws.com/events/uuid.jpg"))
                 .andExpect(jsonPath("$.key").value("events/uuid.jpg"))
                 .andExpect(jsonPath("$.fileSize").value(184520))
-                .andExpect(jsonPath("$.contentType").value("image/jpeg"));
+                .andExpect(jsonPath("$.contentType").value("image/jpeg"))
+                .andExpect(jsonPath("$.thumbnailKey").value("events/uuid-thumb.jpg"))
+                .andExpect(jsonPath("$.thumbnailUrl").value("https://bucket.s3.amazonaws.com/events/uuid-thumb.jpg"))
+                .andExpect(jsonPath("$.width").value(1280))
+                .andExpect(jsonPath("$.height").value(720))
+                .andExpect(jsonPath("$.thumbWidth").value(400))
+                .andExpect(jsonPath("$.thumbHeight").value(225))
+                .andExpect(jsonPath("$.thumbFileSize").value(45000));
 
-        verify(mediaService).uploadMedia(any(), eq("events"));
+        verify(mediaService).uploadMedia(any(MultipartFile.class), eq("events"));
     }
 
     @Test
@@ -77,7 +92,7 @@ class MediaControllerTest {
                 "file", "empty.jpg", "image/jpeg", new byte[0]);
 
         doThrow(new IllegalArgumentException("Cannot upload an empty or null file."))
-                .when(mediaService).uploadMedia(any(), any());
+                .when(mediaService).uploadMedia(any(MultipartFile.class), any());
 
         mockMvc.perform(multipart("/eventgaze/media/upload")
                         .file(emptyFile))

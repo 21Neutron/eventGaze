@@ -102,12 +102,15 @@ public class EventsService {
         Events savedEvent = eventsRepo.save(event);
 
         String bucket = s3Service != null ? s3Service.getBucketName() : null;
+        String savedArtKey = null;
+        boolean needsUpdate = false;
 
         if (eventRequestDTO.getEventArt() != null && !eventRequestDTO.getEventArt().isEmpty()) {
             String fileUrl = s3Service.uploadFile("events", eventRequestDTO.getEventArt());
             String relativeKey = StorageUrlResolver.toRelativeKey(fileUrl, bucket);
-            savedEvent.setEventArt(relativeKey != null ? relativeKey : fileUrl);
-            eventsRepo.save(savedEvent);
+            savedArtKey = (relativeKey != null ? relativeKey : fileUrl);
+            savedEvent.setEventArt(savedArtKey);
+            needsUpdate = true;
         } else {
             String artInput = eventRequestDTO.getEventArtKey();
             if (artInput == null || artInput.isBlank()) {
@@ -115,9 +118,27 @@ public class EventsService {
             }
             if (artInput != null && !artInput.isBlank()) {
                 String relativeKey = StorageUrlResolver.toRelativeKey(artInput, bucket);
-                savedEvent.setEventArt(relativeKey != null ? relativeKey : artInput.trim());
-                eventsRepo.save(savedEvent);
+                savedArtKey = (relativeKey != null ? relativeKey : artInput.trim());
+                savedEvent.setEventArt(savedArtKey);
+                needsUpdate = true;
             }
+        }
+
+        String thumbInput = eventRequestDTO.resolveEventArtThumbInput();
+        if (thumbInput != null && !thumbInput.isBlank()) {
+            String relativeThumbKey = StorageUrlResolver.toRelativeKey(thumbInput, bucket);
+            savedEvent.setEventArtThumb(relativeThumbKey != null ? relativeThumbKey : thumbInput.trim());
+            needsUpdate = true;
+        } else if (savedArtKey != null) {
+            String defaultThumbKey = computeDefaultThumbnailKey(savedArtKey);
+            if (defaultThumbKey != null) {
+                savedEvent.setEventArtThumb(defaultThumbKey);
+                needsUpdate = true;
+            }
+        }
+
+        if (needsUpdate) {
+            eventsRepo.save(savedEvent);
         }
     }
 
@@ -153,6 +174,7 @@ public class EventsService {
         verifyEventOwnership(event, authenticatedUserId);
 
         deleteArtworkIfPresent(event.getEventArt());
+        deleteArtworkIfPresent(event.getEventArtThumb());
 
         eventsRepo.delete(event);
     }
@@ -198,10 +220,66 @@ public class EventsService {
                     oldEvent.setEventArt(newArtKey);
                 }
             }
+            if (newEvent.getEventArtThumb() != null) {
+                String bucket = s3Service != null ? s3Service.getBucketName() : null;
+                String newThumbKey = StorageUrlResolver.toRelativeKey(newEvent.getEventArtThumb(), bucket);
+                if (newThumbKey == null && !newEvent.getEventArtThumb().isBlank()) {
+                    newThumbKey = newEvent.getEventArtThumb().trim();
+                }
+                String oldThumbKey = oldEvent.getEventArtThumb();
+                boolean isDifferent = (newThumbKey == null && oldThumbKey != null)
+                        || (newThumbKey != null && !newThumbKey.equals(oldThumbKey));
+
+                if (isDifferent) {
+                    if (oldThumbKey != null && !oldThumbKey.isBlank()) {
+                        deleteArtworkIfPresent(oldThumbKey);
+                    }
+                    oldEvent.setEventArtThumb(newThumbKey);
+                }
+            } else if (newEvent.getEventArt() != null) {
+                String computedThumb = computeDefaultThumbnailKey(oldEvent.getEventArt());
+                String oldThumbKey = oldEvent.getEventArtThumb();
+                boolean isDifferent = (computedThumb == null && oldThumbKey != null)
+                        || (computedThumb != null && !computedThumb.equals(oldThumbKey));
+                if (isDifferent) {
+                    if (oldThumbKey != null && !oldThumbKey.isBlank()) {
+                        deleteArtworkIfPresent(oldThumbKey);
+                    }
+                    oldEvent.setEventArtThumb(computedThumb);
+                }
+            }
 
             eventsRepo.save(oldEvent);
         }
         return oldEvent;
+    }
+
+    /**
+     * Automatically computes the default thumbnail key <folder>/<uuid>-thumb.jpg
+     * if the artwork follows <folder>/<uuid>.jpg.
+     */
+    public static String computeDefaultThumbnailKey(String artKey) {
+        if (artKey == null || artKey.isBlank() || S3Service.isPlaceholder(artKey)) {
+            return null;
+        }
+        String clean = artKey.trim();
+        while (clean.startsWith("/")) {
+            clean = clean.substring(1);
+        }
+        if (!clean.contains("/")) {
+            return null;
+        }
+        if (clean.endsWith("-thumb.jpg")) {
+            return clean;
+        }
+        if (clean.endsWith(".jpg")) {
+            return clean.substring(0, clean.length() - 4) + "-thumb.jpg";
+        }
+        int lastDot = clean.lastIndexOf('.');
+        if (lastDot != -1) {
+            return clean.substring(0, lastDot) + "-thumb" + clean.substring(lastDot);
+        }
+        return null;
     }
 
     /**
