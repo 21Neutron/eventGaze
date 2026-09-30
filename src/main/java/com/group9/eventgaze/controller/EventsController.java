@@ -29,9 +29,9 @@ public class EventsController {
     @Autowired
     private EventCategoryService eventCategoryService;
 
-    // Returns all events (supports optional pagination: ?page=0&size=10&sortBy=eventDate&direction=DESC)
+    // Returns events (supports optional pagination: ?page=0&size=10&sortBy=eventDate&direction=DESC)
     @GetMapping("/getAll")
-    public ResponseEntity<?> getAllEvents(
+    public ResponseEntity<?> getEvents(
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size,
             @RequestParam(defaultValue = "eventId") String sortBy,
@@ -40,12 +40,12 @@ public class EventsController {
         if (page != null && size != null) {
             Sort sort = direction.equalsIgnoreCase("DESC") ? Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
             Pageable pageable = PageRequest.of(page, size, sort);
-            Page<Events> pagedEvents = eventsService.getAllEvents(pageable);
+            Page<Events> pagedEvents = eventsService.getEvents(pageable);
             Page<EventResponseDTO> responsePage = pagedEvents.map(EventMapper::toEventResponseDTO);
             return ResponseEntity.ok(responsePage);
         }
 
-        List<Events> events = eventsService.getAllEvents();
+        List<Events> events = eventsService.getEvents();
         if (events.isEmpty()) {
             return new ResponseEntity<>(HttpStatus.NO_CONTENT);
         } else {

@@ -33,21 +33,21 @@ class EventsPaginationTest {
     private EventsController eventsController;
 
     @Test
-    void testGetAllEvents_WithPagination() {
+    void testGetEvents_WithPagination() {
         Events event = new Events();
         event.setEventId(1L);
         event.setEventName("Hackathon 2026");
 
         Page<Events> pagedEvents = new PageImpl<>(List.of(event), PageRequest.of(0, 10), 1);
-        when(eventsService.getAllEvents(any(Pageable.class))).thenReturn(pagedEvents);
+        when(eventsService.getEvents(any(Pageable.class))).thenReturn(pagedEvents);
 
-        ResponseEntity<?> response = eventsController.getAllEvents(0, 10, "eventId", "ASC");
+        ResponseEntity<?> response = eventsController.getEvents(0, 10, "eventId", "ASC");
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertTrue(response.getBody() instanceof Page<?>);
         Page<?> body = (Page<?>) response.getBody();
         assertEquals(1, body.getTotalElements());
-        verify(eventsService).getAllEvents(any(Pageable.class));
+        verify(eventsService).getEvents(any(Pageable.class));
     }
 
     @Test

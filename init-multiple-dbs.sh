@@ -11,10 +11,10 @@ function create_user_and_database() {
 EOSQL
 }
 
-if [ -n "${POSTGRES_MULTIPLE_DATABASES:-eventgaze_auth,eventgaze_events,eventgaze_bookmarks}" ]; then
-	echo "Multiple database creation requested: ${POSTGRES_MULTIPLE_DATABASES:-eventgaze_auth,eventgaze_events,eventgaze_bookmarks}"
-	for db in $(echo "${POSTGRES_MULTIPLE_DATABASES:-eventgaze_auth,eventgaze_events,eventgaze_bookmarks}" | tr ',' ' '); do
+if [ -n "${POSTGRES_MULTIPLE_DATABASES:-eventgaze}" ]; then
+	echo "Database creation requested: ${POSTGRES_MULTIPLE_DATABASES:-eventgaze}"
+	for db in $(echo "${POSTGRES_MULTIPLE_DATABASES:-eventgaze}" | tr ',' ' '); do
 		create_user_and_database $db
 	done
-	echo "Multiple databases created"
+	echo "Database initialization complete"
 fi

@@ -52,11 +52,11 @@ public class EventsService {
     @Autowired
     private UsersService usersService;
 
-    public List<Events> getAllEvents() {
+    public List<Events> getEvents() {
         return eventsRepo.findAll();
     }
 
-    public Page<Events> getAllEvents(Pageable pageable) {
+    public Page<Events> getEvents(Pageable pageable) {
         return eventsRepo.findAll(pageable);
     }
 

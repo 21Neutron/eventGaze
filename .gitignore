@@ -33,6 +33,7 @@ build/
 .vscode/
 
 ### Local developer configs (contains private credentials) ###
+.env
 *local*.yaml
 *local*.yml
 *local*.properties
